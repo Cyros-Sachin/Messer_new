@@ -200,46 +200,6 @@ const SpaceService = {
     });
     return response.json();
   },
-  // not tested
-  createWordpadContent: async (payload: {
-    wordpad_id: string;
-    user_id: string;
-    content: string;
-  }) => {
-    const response = await fetch(`${API_BASE_URL}/wordpad-content`, {
-      method: 'POST',
-      headers: SpaceService.getHeaders(),
-      body: JSON.stringify({
-        ...payload,
-        version: "v1",
-        created_date: new Date().toISOString(),
-        last_updated: new Date().toISOString(),
-      }),
-    });
-    return response.json();
-  },
-
-  updateWordpadContent: async (wcId: string, content: string) => {
-    const response = await fetch(`${API_BASE_URL}/wordpad-content/${wcId}`, {
-      method: 'PUT',
-      headers: SpaceService.getHeaders(),
-      body: JSON.stringify({
-        content,
-        last_updated: new Date().toISOString(),
-      }),
-    });
-    return response.json();
-  },
-
-  deleteTodo: async (todoId: string, userId: string) => {
-    const response = await fetch(`${API_BASE_URL}/todos/${todoId}/${userId}`, {
-      method: 'DELETE',
-      headers: SpaceService.getHeaders(),
-      body: JSON.stringify(todoId)
-    });
-    return response.json();
-  },
-  //error
   createTodo: async (data: {
     space_id: string;
     subspace_id: string;
@@ -248,7 +208,7 @@ const SpaceService = {
     refresh_type: string;
     last_state: boolean;
   }) => {
-    const created_date = new Date().toISOString();
+    const created_date = new Date().toISOString().slice(0, 16);
     const last_updated = created_date;
 
     // Add created_date and last_updated to payload
@@ -272,17 +232,55 @@ const SpaceService = {
 
     return response.json();
   },
-
   getWordpadContent: async (wordpadId: string, userId: string): Promise<WordpadContent[]> => {
     // return [];
-    const payload = {wordpad_id : wordpadId, asked_version : 5}
+    const payload = { wordpad_id: wordpadId, asked_version: 5 }
     const response = await fetch(`${API_BASE_URL}/api/wordpad/get_versions_of_wordpad_content`, {
       headers: SpaceService.getHeaders(),
       method: "POST",
-      body : JSON.stringify(payload)
+      body: JSON.stringify(payload)
     });
     const data = await response.json();
     return Array.isArray(data) ? data : [];
+  },
+  
+  createWordpadContent: async (payload: {
+    wordpad_id: string;
+    user_id: string;
+    content: string;
+  }) => {
+    const response = await fetch(`${API_BASE_URL}/api/wordpad/add_wordpad_content`, {
+      method: 'POST',
+      headers: SpaceService.getHeaders(),
+      body: JSON.stringify({
+        ...payload,
+        version: 1,
+        created_date: new Date().toISOString().slice(0, 16),
+        last_updated: new Date().toISOString().slice(0, 16),
+      }),
+    });
+    return response.json();
+  },
+
+  updateWordpadContent: async (wcId: string, content: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/wordpad/update_wordpad_content`, {
+      method: 'POST',
+      headers: SpaceService.getHeaders(),
+      body: JSON.stringify({
+        wc_id: wcId,
+        content,
+        last_updated: new Date().toISOString().slice(0, 16),
+      }),
+    });
+    return response.json();
+  },
+  deleteTodo: async (todoId: string, userId: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/todo/delete_todo`, {
+      method: 'POST',
+      headers: SpaceService.getHeaders(),
+      body: JSON.stringify({todo_id: todoId})
+    });
+    return response.json();
   },
 
 };
@@ -613,10 +611,11 @@ export default function SpacePage() {
   // api
   const updateCheckStatus = async (item: any) => {
     try {
-      await fetch(`https://meseer.com/dog/todo_content/${item.tc_id}`, {
-        method: 'PUT',
+      await fetch(`${API_BASE_URL}/api/todo/update_todo_content`, {
+        method: 'POST',
         headers: SpaceService.getHeaders(),
         body: JSON.stringify({
+          tc_id: item.tc_id,
           content: item.content,
           checked: item.checked,
           urgent: item.urgent ?? false,
@@ -669,12 +668,12 @@ export default function SpacePage() {
         });
       } else if (subspaceAction === 'edit' && currentSubspace) {
         // Implement update functionality
-        const response = await fetch(`${API_BASE_URL}/subspaces/${currentSubspace.subspace_id}`, {
-          method: 'PUT',
+        const response = await fetch(`${API_BASE_URL}/api/subspace/update_subspaces`, {
+          method: 'POST',
           headers: SpaceService.getHeaders(),
           body: JSON.stringify({
+            subspace_id: currentSubspace.subspace_id,
             space_id: activeSpace.space_id,
-            user_id: userId,
             name: newSubspaceName
           }),
         });
@@ -697,9 +696,10 @@ export default function SpacePage() {
 
     try {
       const userId = getUserId();
-      const response = await fetch(`${API_BASE_URL}/subspaces/${currentSubspace.subspace_id}/${userId}`, {
-        method: 'DELETE',
+      const response = await fetch(`${API_BASE_URL}/api/subspace/delete_subspace`, {
+        method: 'POST',
         headers: SpaceService.getHeaders(),
+        body: JSON.stringify({subspace_id : currentSubspace.subspace_id})
       });
       if (!response.ok) throw new Error('Failed to delete subspace');
 
@@ -735,17 +735,17 @@ export default function SpacePage() {
 
       // Prepare data for PUT request
       const data = {
+        todo_id: todoId,
         space_id: activeSpace?.space_id,         // existing space_id from todo
-        subspace_id: currentSubspace?.subspace_id,   // existing subspace_id
-        user_id: getUserId(),             // get user_id however you do in your app
+        subspace_id: activeSubspace?.subspace_id,   // existing subspace_id
         refresh_type: todo.refresh_type, // keep current refresh_type
         name: newName,                   // new name from input
         last_state: false     // keep current last_state
       };
 
       // Send PUT request to update todo name
-      const res = await fetch(`https://meseer.com/dog/todos/${todoId}`, {
-        method: "PUT",
+      const res = await fetch(`${API_BASE_URL}/api/todo/update_todo`, {
+        method: "POST",
         headers: SpaceService.getHeaders(),
         body: JSON.stringify(data)
       });
@@ -863,10 +863,11 @@ export default function SpacePage() {
       if (!wordpad) return;
 
       const userId = getUserId();
-      const response = await fetch(`${API_BASE_URL}/wordpads/${wordpadId}`, {
-        method: "PUT",
+      const response = await fetch(`${API_BASE_URL}/api/wordpad/update_wordpad`, {
+        method: "POST",
         headers: SpaceService.getHeaders(),
         body: JSON.stringify({
+          wordpad_id : wordpad.wordpad_id,
           name: newName,
           refresh_type: wordpad.refresh_type,
           subspace_id: activeSubspace?.subspace_id,
@@ -934,11 +935,11 @@ export default function SpacePage() {
 
     try {
       const userId = getUserId();
-      const now = new Date().toISOString();
+      const now = new Date().toISOString().slice(0,16);
       const refresh_type = todos.find(t => String(t.todo_id) === todoId)?.refresh_type || "daily";
-      const version = "v1";
+      const version = 1;
 
-      await fetch(`https://meseer.com/dog/todo_content`, {
+      await fetch(`${API_BASE_URL}/api/todo/add_todo_content`, {
         method: "POST",
         headers: SpaceService.getHeaders(),
         body: JSON.stringify({
@@ -1395,15 +1396,18 @@ export default function SpacePage() {
                                                       )}
 
                                                     </div>
-                                                      {/* api */}
+                                                    {/* api */}
                                                     <motion.button
                                                       whileHover={{ scale: 1.1 }}
                                                       whileTap={{ scale: 0.9 }}
                                                       onClick={async () => {
                                                         try {
-                                                          await fetch(`https://meseer.com/dog/todo_content/${item.tc_id}`, {
-                                                            method: "DELETE",
+                                                          await fetch(`${API_BASE_URL}/api/todo/delete_todo_content`, {
+                                                            method: "POST",
                                                             headers: SpaceService.getHeaders(),
+                                                            body: JSON.stringify({
+                                                              tc_id: item.tc_id
+                                                            })
                                                           });
                                                           const userId = getUserId();
                                                           if (activeSubspace) {
@@ -1457,16 +1461,15 @@ export default function SpacePage() {
 
                                                 try {
                                                   const userId = getUserId();
-                                                  const now = new Date().toISOString();
+                                                  const now = new Date().toISOString().slice(0,16);
                                                   const refresh_type = todo.refresh_type || "daily"; // default fallback
-                                                  const version = "v1"; // hardcoded or adjust as needed
+                                                  const version = 1; // hardcoded or adjust as needed
 
-                                                  await fetch(`https://meseer.com/dog/todo_content`, {
+                                                  await fetch(`${API_BASE_URL}/api/todo/add_todo_content`, {
                                                     method: "POST",
                                                     headers: SpaceService.getHeaders(),
                                                     body: JSON.stringify({
                                                       todo_id: todo.todo_id,
-                                                      user_id: userId,
                                                       content,
                                                       checked: false,
                                                       urgent: true,
@@ -1474,7 +1477,6 @@ export default function SpacePage() {
                                                       version,
                                                       created_date: now,
                                                       last_updated: now,
-                                                      refresh_type,
                                                     }),
                                                   });
 
@@ -2266,9 +2268,12 @@ export default function SpacePage() {
                           whileTap={{ scale: 0.9 }}
                           onClick={async () => {
                             try {
-                              await fetch(`https://meseer.com/dog/todo_content/${item.tc_id}`, {
-                                method: "DELETE",
+                              await fetch(`${API_BASE_URL}/api/todo/delete_todo_content`, {
+                                method: "POST",
                                 headers: SpaceService.getHeaders(),
+                                body: JSON.stringify({
+                                  tc_id : item.tc_id
+                                })
                               });
 
                               setMaximizedTodo((prev: any) => {
@@ -2332,9 +2337,9 @@ export default function SpacePage() {
 
                         /* 🔸 build task payload */
                         const userId = getUserId();
-                        const now = new Date().toISOString();
+                        const now = new Date().toISOString().slice(0,16);
                         const refresh_type = maximizedTodo.refresh_type || "daily";
-                        const version = "v1";
+                        const version = 1;
                         const newTask = {
                           tc_id: crypto.randomUUID(),
                           content,
@@ -2357,10 +2362,10 @@ export default function SpacePage() {
                         setMaximizedTodo((prev) =>
                           prev ? { ...prev, contents: [newTask, ...(prev as any).contents] } : prev
                         );
-                      // api
+                        // api
                         /* 2️⃣ persist to server */
                         try {
-                          await fetch("https://meseer.com/dog/todo_content", {
+                          await fetch(`${API_BASE_URL}/api/todo/add_todo_content`, {
                             method: "POST",
                             headers: SpaceService.getHeaders(),
                             body: JSON.stringify({
