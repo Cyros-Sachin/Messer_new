@@ -20,7 +20,6 @@ import {
 } from '../features/calendar/calendarSlice';
 import {
   fetchGoalsAndTasks,
-  createCalendarEvent,
   fetchActionsForTasks,
   fetchEvents
 } from "../lib/api"; // Adjust path if needed
