@@ -4,7 +4,7 @@ import { SquareCheck, Pencil, Trash2, Flag } from "lucide-react";
 import { it } from "node:test";
 import { getUserId, getUserToken } from "../utils/auth";
 
-const API_BASE_URL = "https://meseer.com/dog";
+const API_BASE_URL = "https://datawheels.org";
 
 type ActivityItem = {
   a_id: number;
@@ -83,8 +83,8 @@ export default function DynamicActivityDetails({ userId, realCollectiveId, colle
         try {
           const isFood = trigger.toLowerCase().includes("food") || trigger.toLowerCase().includes("meal");
           const url = isFood
-            ? `https://meseer.com/dog/food-items/search/${search}`
-            : `https://meseer.com/dog/exercise/search/${search}`;
+            ? `${API_BASE_URL}/api/meal/food-items/search/${search}`
+            : `${API_BASE_URL}/api/workout/exercise/search/${search}`;
 
           const res = await fetch(url, {
             headers: { Authorization: `Bearer ${getUserToken()}` },
@@ -145,10 +145,16 @@ export default function DynamicActivityDetails({ userId, realCollectiveId, colle
       try {
         const correctCollectiveId = (item.a_id === 29 || item.a_id === 33) ? realCollectiveId : collectiveId;
 
-        const res = await fetch(`${API_BASE_URL}/generic/get-it/${userId}/${item.a_id}/${correctCollectiveId}`, {
+        const res = await fetch(`${API_BASE_URL}/api/activity/get_generic_trigger_activity`, {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${getUserToken()}`,
+            'Content-Type': 'application/json',
           },
+          method: "POST",
+          body: JSON.stringify({
+            pa_id: item.a_id,
+            collective_id: Number(correctCollectiveId)
+          })
         });
 
         const json = await res.json();
@@ -161,8 +167,15 @@ export default function DynamicActivityDetails({ userId, realCollectiveId, colle
           filteredEntries = entriesArray.filter((entry) => entry.cat_qty_id1 === taskId);
         }
         if ([30, 31, 32].includes(item.a_id)) {
-          const res = await fetch(`${API_BASE_URL}/get_actions/${collectiveId}`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          const res = await fetch(`${API_BASE_URL}/api/action/get_all_actions_based_task`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${getUserToken()}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              task_id: collectiveId
+            })
           });
 
           const actions = await res.json();
@@ -316,9 +329,9 @@ export default function DynamicActivityDetails({ userId, realCollectiveId, colle
 
           result[item.a_id] = mappedEntries;
 
-          const templateRes = await fetch(`${API_BASE_URL}/generic/templates/${item.a_id}`, {
+          const templateRes = await fetch(`${API_BASE_URL}/api/activity/get_template/${item.a_id}`, {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
+              Authorization: `Bearer ${getUserToken()}`,
             },
           });
           const templateJson = await templateRes.json();
@@ -329,9 +342,9 @@ export default function DynamicActivityDetails({ userId, realCollectiveId, colle
 
         result[item.a_id] = filteredEntries;
 
-        const templateRes = await fetch(`${API_BASE_URL}/generic/templates/${item.a_id}`, {
+        const templateRes = await fetch(`${API_BASE_URL}/api/activity/get_template/${item.a_id}`, {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            Authorization: `Bearer ${getUserToken()}`,
           },
         });
         const templateJson = await templateRes.json();
@@ -347,10 +360,10 @@ export default function DynamicActivityDetails({ userId, realCollectiveId, colle
   };
 
   const updatePrimaryMWBData = async (payload: any) => {
-    const response = await fetch(`${API_BASE_URL}/update-delete-data/primary-mwb`, {
+    const response = await fetch(`${API_BASE_URL}/api/activity/update_delete_trigger_activity`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Authorization: `Bearer ${getUserToken()}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),

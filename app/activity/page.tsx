@@ -9,9 +9,10 @@ import SideBar from "../components/SideBar";
 import DynamicActivityDetails from "../components/DynamicActivityDetails";
 import DynamicActivityItemForm from "../components/DynamicActivityItemForm";
 import toast from "react-hot-toast";
+import { getUserToken } from "../utils/auth";
 
 // API Base URL
-const API_BASE_URL = 'https://meseer.com/dog';
+const API_BASE_URL = 'https://datawheels.org';
 type ExtendedActivityItem = ActivityItem & {
     flag: string;
     trigger: string;
@@ -109,7 +110,7 @@ const ActivityService = {
 
     // Activity Types
     getActivityTypes: async (): Promise<ActivityType[]> => {
-        const response = await fetch(`${API_BASE_URL}/get-activity-type`, {
+        const response = await fetch(`${API_BASE_URL}/api/activity/get_activity_type`, {
             headers: ActivityService.getHeaders()
         });
         return await response.json();
@@ -117,23 +118,31 @@ const ActivityService = {
 
     // Activity Items by Type
     getActivityItemsByType: async (at_id: number): Promise<ActivityItem[]> => {
-        const response = await fetch(`${API_BASE_URL}/pinned-activities-items/${at_id}`, {
-            headers: ActivityService.getHeaders()
+        const response = await fetch(`${API_BASE_URL}/api/activity/get_secondary_activities_items`, {
+            headers: ActivityService.getHeaders(),
+            method: "POST",
+            body: JSON.stringify({
+                at_id: at_id
+            })
         });
         return await response.json();
     },
 
     // Pinned Activity Items
     getPinnedActivityItems: async (at_id: number, pinned_id: number): Promise<ActivityItem[]> => {
-        const response = await fetch(`${API_BASE_URL}/pinned-activities-items/${at_id}?id=${pinned_id}`, {
-            headers: ActivityService.getHeaders()
+        const response = await fetch(`${API_BASE_URL}/api/activity/get_secondary_activities_items`, {
+            headers: ActivityService.getHeaders(),
+            method: "POST",
+            body: JSON.stringify({
+                at_id: at_id
+            })
         });
         return await response.json();
     },
 
     // Template Data
     getTemplateData: async (a_id: number): Promise<TemplateData> => {
-        const response = await fetch(`${API_BASE_URL}/generic/templates/${a_id}`, {
+        const response = await fetch(`${API_BASE_URL}/api/activity/get_template/${a_id}`, {
             headers: ActivityService.getHeaders()
         });
         return await response.json();
@@ -141,37 +150,17 @@ const ActivityService = {
 
     // Pinned Activities
     getPinnedActivities: async (user_id: string, at_id: number): Promise<PinnedActivity[]> => {
-        const response = await fetch(`${API_BASE_URL}/activities-items/${at_id}`, {
-            headers: ActivityService.getHeaders()
+        const response = await fetch(`${API_BASE_URL}/api/activity/get_primary_activities_items`, {
+            headers: ActivityService.getHeaders(),
+            method: "POST",
+            body: JSON.stringify({
+                at_id: at_id
+            })
         });
         const data = await response.json();
         return data || [];
     },
-
-    // User Activities
-    getUserActivities: async (user_id: string, at_id: number): Promise<UserActivity[]> => {
-        const url = `${API_BASE_URL}/generic/pinned-activity/user-data/${user_id}/${at_id}`;
-
-        try {
-            const response = await fetch(url, {
-                headers: ActivityService.getHeaders(),
-            });
-
-            if (response.status === 404) {
-                return []; // Gracefully return empty
-            }
-
-            if (!response.ok) {
-                throw new Error(`API error ${response.status}`);
-            }
-
-            const data = await response.json();
-            return Array.isArray(data.pinned_activity) ? data.pinned_activity : [];
-        } catch (error) {
-            return []; // Fallback: return empty list on error
-        }
-    },
-
+    // NA
     // Create Meal Activity
     createMealActivity: async (payload: {
         user_id: string;
@@ -243,7 +232,7 @@ const ActivityService = {
         cat_qty_id6?: number;
         value6?: string;
     }): Promise<UserActivity> => {
-        const response = await fetch(`${API_BASE_URL}/dog/user_activity_insert`, {
+        const response = await fetch(`${API_BASE_URL}/api/activity/add_user_activity`, {
             method: 'POST',
             headers: ActivityService.getHeaders(),
             body: JSON.stringify(payload),
@@ -253,7 +242,7 @@ const ActivityService = {
 
     // Search Food Items
     searchFoodItems: async (query: string): Promise<any[]> => {
-        const response = await fetch(`${API_BASE_URL}/dog/food-items/search/${query}`, {
+        const response = await fetch(`${API_BASE_URL}/api/meal/food-items/search/${query}`, {
             headers: ActivityService.getHeaders()
         });
         return await response.json();
@@ -284,7 +273,7 @@ const ActivityService = {
         type: string; // "meal" or "workout"
         instructions?: string | null;
     }) => {
-        const response = await fetch(`${API_BASE_URL}/add-data/primary-mwb/`, {
+        const response = await fetch(`${API_BASE_URL}/api/activity/add_trigger_activity`, {
             method: 'POST',
             headers: ActivityService.getHeaders(),
             body: JSON.stringify(data),
@@ -305,10 +294,10 @@ const ActivityService = {
         cat_qty_id1?: number;
         action: "DELETE";
     }) => {
-        const response = await fetch(`${API_BASE_URL}/update-delete-data/primary-mwb`, {
+        const response = await fetch(`${API_BASE_URL}/api/activity/update_delete_trigger_activity`, {
             method: "POST",
             headers: {
-                Authorization: `Bearer ${localStorage.getItem("token")}`,
+                Authorization: `Bearer ${getUserToken()}`,
                 "Content-Type": "application/json"
             },
             body: JSON.stringify(payload),
@@ -343,10 +332,10 @@ const ActivityService = {
         value5: string;
         value6: string;
     }) => {
-        const response = await fetch(`${API_BASE_URL}/update-delete-data/primary-mwb`, {
+        const response = await fetch(`${API_BASE_URL}/api/activity/update_delete_trigger_activity`, {
             method: "POST",
             headers: {
-                Authorization: `Bearer ${localStorage.getItem("token")}`,
+                Authorization: `Bearer ${getUserToken()}`,
                 "Content-Type": "application/json"
             },
             body: JSON.stringify(payload),
@@ -359,6 +348,33 @@ const ActivityService = {
         return await response.json();
     },
 
+    // User Activities
+    getUserActivities: async (user_id: string, at_id: number): Promise<UserActivity[]> => {
+        const url = `${API_BASE_URL}/api/activity/pinned-activity`;
+
+        try {
+            const response = await fetch(url, {
+                headers: ActivityService.getHeaders(),
+                method: "POST",
+                body: JSON.stringify({
+                    at_id: at_id
+                })
+            });
+
+            if (response.status === 404) {
+                return []; // Gracefully return empty
+            }
+
+            if (!response.ok) {
+                throw new Error(`API error ${response.status}`);
+            }
+
+            const data = await response.json();
+            return Array.isArray(data.pinned_activity) ? data.pinned_activity : [];
+        } catch (error) {
+            return []; // Fallback: return empty list on error
+        }
+    },
 };
 
 function ActivityPage() {
@@ -475,7 +491,12 @@ function ActivityPage() {
 
         try {
             const userId = getUserId();
-            const res = await fetch(`https://meseer.com/dog/get_all_goals_tasks/${userId}`);
+            const res = await fetch(`${API_BASE_URL}/api/goal/get_all_goals_based_task`, {
+                headers: {
+                    Authorization: `Bearer ${getUserToken()}`,
+                    'Content-Type': 'application/json',
+                },
+            });
             const data = await res.json();
             setGoalTasksData(data);
         } catch (err) {
@@ -485,7 +506,12 @@ function ActivityPage() {
     const hardfetch = async () => {
         try {
             const userId = getUserId();
-            const res = await fetch(`https://meseer.com/dog/get_all_goals_tasks/${userId}`);
+            const res = await fetch(`${API_BASE_URL}/api/goal/get_all_goals_based_task`, {
+                headers: {
+                    Authorization: `Bearer ${getUserToken()}`,
+                    'Content-Type': 'application/json',
+                },
+            });
             const data = await res.json();
             setGoalTasksData(data);
         } catch (err) {
@@ -537,10 +563,17 @@ function ActivityPage() {
 
         try {
             const response = await fetch(
-                `https://meseer.com/dog/generic/get-it/${userId}/${pa_id}/${collective_id}`,
+                `${API_BASE_URL}/api/activity/get_generic_trigger_activity`,
                 {
+                    method: "POST",
+                    body: JSON.stringify({
+                        pa_id: pa_id,
+                        collective_id: collective_id
+
+                    }),
                     headers: {
-                        Authorization: `Bearer ${localStorage.getItem("token")}`,
+                        Authorization: `Bearer ${getUserToken()}`,
+                        'Content-Type': 'application/json',
                     },
                 }
             );
@@ -777,15 +810,13 @@ function ActivityPage() {
                 value4: goalForm.value4,
                 value5: goalForm.value5,
                 value6: "",
-                cat_qty_undefined: 0,
-                valueundefined: "",
                 trigger: "goal",
                 is_active: true,
                 description: `Goal is added at ${now}`,
                 event_time: now
             };
 
-            const res = await fetch('https://meseer.com/dog/add-data/primary-mwb/', {
+            const res = await fetch(`${API_BASE_URL}/api/activity/add_trigger_activity`, {
                 method: 'POST',
                 headers: ActivityService.getHeaders(),
                 body: JSON.stringify(payload)
@@ -823,15 +854,13 @@ function ActivityPage() {
                 value4: "",
                 value5: "",
                 value6: "",
-                cat_qty_undefined: 0,
-                valueundefined: "",
                 trigger: "task",
                 is_active: "Y",
                 description: `Task is added at ${now}`,
                 event_time: now
             };
 
-            const res = await fetch('https://meseer.com/dog/add-data/primary-mwb/', {
+            const res = await fetch(`${API_BASE_URL}/api/activity/add_trigger_activity`, {
                 method: 'POST',
                 headers: ActivityService.getHeaders(),
                 body: JSON.stringify(payload),
@@ -1596,7 +1625,12 @@ function ActivityPage() {
 
                             // Use latest updated data — goalTasksData is async set, so better to refetch from the fetch result
                             const userId = getUserId();
-                            const res = await fetch(`https://meseer.com/dog/get_all_goals_tasks/${userId}`);
+                            const res = await fetch(`${API_BASE_URL}/api/goal/get_all_goals_based_task`, {
+                                headers: {
+                                    Authorization: `Bearer ${getUserToken()}`,
+                                    'Content-Type': 'application/json',
+                                },
+                            });
                             const data = await res.json();
                             setGoalTasksData(data); // Update state
 

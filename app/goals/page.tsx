@@ -20,7 +20,6 @@ import {
 } from '../features/calendar/calendarSlice';
 import {
     fetchGoalsAndTasks,
-    createCalendarEvent,
     fetchActionsForTasks,
     fetchEvents
 } from "../lib/api";
@@ -183,6 +182,7 @@ const GoalsPage = () => {
         total_hours: 0,
         weekly_breakdown: null,
     });
+    const API_BASE_URL = "https://datawheels.org"
     const [currentViewName, setCurrentViewName] = useState<string>("All Goals");
     const [draggedAction, setDraggedAction] = useState<Event | null>(null);
     const [dropTarget, setDropTarget] = useState<{ day: Date; time: Date } | null>(null);
@@ -294,7 +294,7 @@ const GoalsPage = () => {
     // Data fetching functions
     const fetchTaskProgress = async (goalId: string) => {
         try {
-            const res = await fetch(`https://meseer.com/dog/get-progress`, {
+            const res = await fetch(`https://datawheels.org/api/action/get-progress`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${getUserToken()}`,
@@ -308,7 +308,7 @@ const GoalsPage = () => {
             const data = await res.json();
             setTaskProgressMap(prev => ({ ...prev, [goalId]: data || {} }));
 
-            const response = await fetch('https://meseer.com/dog/get-timely-stats', {
+            const response = await fetch('https://datawheels.org/api/action/get-timely-stats', {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${getUserToken()}`,
@@ -329,7 +329,7 @@ const GoalsPage = () => {
 
     const fetchAllGoalsStats = async () => {
         try {
-            const res = await fetch(`https://meseer.com/dog/get-timely-stats`, {
+            const res = await fetch(`https://datawheels.org/api/action/get-timely-stats`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${getUserToken()}`,
@@ -364,11 +364,11 @@ const GoalsPage = () => {
         }
 
         try {
-            const todoRes = await fetch(`https://meseer.com/dog/todos/${userId}`, {
+            const todoRes = await fetch(`${API_BASE_URL}/api/todo/get_all_todo`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
             });
 
             if (!todoRes.ok) throw new Error(`Todo fetch failed: ${todoRes.status}`);
@@ -389,7 +389,7 @@ const GoalsPage = () => {
                 return;
             }
 
-            const contentRes = await fetch(`https://meseer.com/dog/todo_content/${userId}`, {
+            const contentRes = await fetch(`${API_BASE_URL}/api/todo/get_todo_content_for_user`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -412,7 +412,7 @@ const GoalsPage = () => {
 
             setSelectedTaskTodo(finalTodo);
 
-            const response = await fetch('https://meseer.com/dog/get-timely-stats', {
+            const response = await fetch('https://datawheels.org/api/action/get-timely-stats', {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${getUserToken()}`,
@@ -470,13 +470,14 @@ const GoalsPage = () => {
     const updateCheckStatus = async (item: TodoContent) => {
         try {
             const token = getUserToken();
-            await fetch(`https://meseer.com/dog/todo_content/${item.tc_id}`, {
-                method: 'PUT',
+            await fetch(`${API_BASE_URL}/api/todo/update_todo_content`, {
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
+                    tc_id: item.tc_id,
                     content: item.content,
                     checked: item.checked,
                     urgent: item.urgent ?? false,
@@ -491,10 +492,10 @@ const GoalsPage = () => {
     const handleAddTask = async () => {
         const userId = getUserId();
         const token = getUserToken();
-        const now = new Date().toISOString();
+        const now = new Date().toISOString().slice(0,16);
 
         try {
-            const response = await fetch(`https://meseer.com/dog/todo_content`, {
+            const response = await fetch(`${API_BASE_URL}/api/todo/add_todo_content`, {
                 method: "POST",
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -507,7 +508,7 @@ const GoalsPage = () => {
                     checked: false,
                     urgent: true,
                     important: false,
-                    version: "v1",
+                    version: 1,
                     created_date: now,
                     last_updated: now,
                     refresh_type: maximizedTodo?.refresh_type || selectedTaskTodo?.refresh_type || "daily",
@@ -515,7 +516,7 @@ const GoalsPage = () => {
             });
 
             if (response.ok) {
-                const contentRes = await fetch(`https://meseer.com/dog/todo_content/${userId}`, {
+                const contentRes = await fetch(`${API_BASE_URL}/api/todo/get_todo_content_for_user`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -548,12 +549,15 @@ const GoalsPage = () => {
 
         try {
             const token = getUserToken();
-            await fetch(`https://meseer.com/dog/todo_content/${tcId}`, {
+            await fetch(`${API_BASE_URL}/api/todo/delete_todo_content`, {
                 method: "DELETE",
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                body: JSON.stringify({
+                    tc_id: tcId
+                })
             });
 
             setSelectedTaskTodo(prev => {
@@ -1404,7 +1408,7 @@ const GoalsPage = () => {
     useEffect(() => {
         const fetchProgress = async () => {
             try {
-                const res = await fetch(`https://meseer.com/dog/get-progress`, {
+                const res = await fetch(`https://datawheels.org/api/action/get-progress`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${getUserToken()}`,

@@ -1,13 +1,14 @@
 import axios from "axios";
 // ✅ Import from the actual Redux slice
 
-const BASE_URL = "https://meseer.com";
+const BASE_URL = "https://datawheels.org";
 
 import { Goal, Task } from "../features/calendar/calendarSlice"; // ✅ import both
+import { getUserToken } from "../utils/auth";
 type EventCategory = 'exercise' | 'eating' | 'work' | 'relax' | 'family' | 'social';
 
 export const fetchGoalsAndTasks = async (userId: string, token: string): Promise<Goal[]> => {
-  const res = await axios.get(`${BASE_URL}/dog/get_all_goals_tasks/${userId}`, {
+  const res = await axios.get(`${BASE_URL}/api/goal/get_all_goals_based_task`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -59,44 +60,18 @@ export const fetchGoalsAndTasks = async (userId: string, token: string): Promise
 
 export const fetchTodoItems = async (todoId: number, userId: string, token: string) => {
   try {
-    const res = await axios.get(`${BASE_URL}/dog/todos/${todoId}/${userId}`, {
+    const res = await axios.post(`${BASE_URL}/api/todo/get_latest_ten_versioned_todocontent_from_todo`, {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify({
+        todo_id: todoId
+      })
     });
     return res.data;
   } catch (err) {
     console.error(`Failed to fetch todos for task ${todoId}:`, err);
-    throw err;
-  }
-};
-
-export const createCalendarEvent = async (data: any) => {
-  try {
-    const res = await axios.post(`${BASE_URL}/dog/add-data/calendar-event/`, data);
-    return res.data;
-  } catch (err) {
-    console.error("Failed to create calendar event:", err);
-    throw err;
-  }
-};
-
-export const updateCalendarEvent = async (eventId: string, data: any) => {
-  try {
-    const res = await axios.put(`${BASE_URL}/dog/update/calendar-event/${eventId}`, data);
-    return res.data;
-  } catch (err) {
-    console.error(`Failed to update calendar event ${eventId}:`, err);
-    throw err;
-  }
-};
-
-export const deleteCalendarEvent = async (eventId: string) => {
-  try {
-    const res = await axios.delete(`${BASE_URL}/dog/delete/calendar-event/${eventId}`);
-    return res.data;
-  } catch (err) {
-    console.error(`Failed to delete calendar event ${eventId}:`, err);
     throw err;
   }
 };
@@ -114,18 +89,23 @@ export const fetchActionsForTasks = async (
 
     for (const aid of fixedAIds) {
       try {
-        const res = await axios.get(
-          `https://meseer.com/dog/get_actions/${taskId}`,
+        const res = await fetch(
+          `${BASE_URL}/api/action/get_all_actions_based_task`,
           {
+            method:"POST",
             headers: {
               Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json"
             },
+            body: JSON.stringify({
+              task_id: taskId
+            })
           }
         );
 
-        if (Array.isArray(res.data)) {
+        if (Array.isArray(res)) {
           // Check validity ONLY when the key exists
-          const filtered = res.data.filter(action => {
+          const filtered = res.filter(action => {
             if (action.validity_flag && action.validity_flag === "expired") {
               return false;
             }
@@ -161,7 +141,17 @@ export function parseCustomDateTime(dateStr: string): Date | null {
 }
 
 export async function fetchEvents(userId: string, collectiveId: string) {
-  const response = await fetch(`https://meseer.com/dog/generic/get-it/${userId}/33/${collectiveId}`);
+  const response = await fetch(`${BASE_URL}/api/activity/get_generic_trigger_activity`,{
+            method:"POST",
+            headers: {
+              Authorization: `Bearer ${getUserToken()}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              pa_id : 33,
+              collective_id : collectiveId
+            })
+          });
   if (!response.ok) throw new Error("Failed to fetch action events");
   return response.json();
 }

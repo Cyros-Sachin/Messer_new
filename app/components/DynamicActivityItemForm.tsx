@@ -42,7 +42,7 @@ const DynamicActivityItemForm = ({
   const [selectedSubspace, setSelectedSubspace] = useState<{ subspace_id: number; name: string } | null>(null);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [renderedIndexes, setRenderedIndexes] = useState<number[]>([]);
-
+  const API_BASE_URL = "https://datawheels.org";
   useEffect(() => {
     if (!isOpen || !a_id) return;
     fetchTemplateData();
@@ -51,7 +51,7 @@ const DynamicActivityItemForm = ({
   useEffect(() => {
     const fetchSubspaces = async () => {
       try {
-        const res = await fetch(`https://meseer.com/dog/space-subspace/${userId}`, {
+        const res = await fetch(`${API_BASE_URL}/api/subspace/combined_space_subspace`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
@@ -83,7 +83,7 @@ const DynamicActivityItemForm = ({
 
   const fetchTemplateData = async () => {
     try {
-      const res = await fetch(`https://meseer.com/dog/generic/templates/${a_id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/activity/get_template/${a_id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -104,8 +104,8 @@ const DynamicActivityItemForm = ({
       try {
         const isFood = trigger.toLowerCase().includes("food") || trigger.toLowerCase().includes("meal");
         const url = isFood
-          ? `https://meseer.com/dog/food-items/search/${search}`
-          : `https://meseer.com/dog/exercise/search/${search}`;
+            ? `${API_BASE_URL}/api/meal/food-items/search/${search}`
+            : `${API_BASE_URL}/api/workout/exercise/search/${search}`;
 
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
@@ -676,11 +676,11 @@ const DynamicActivityItemForm = ({
       }
       // 📡 Choose correct endpoint
       let endpoint = (isSpecial && (a_id === 28 || a_id === 25))
-        ? "https://meseer.com/dog/user_activity_insert"
-        : "https://meseer.com/dog//add-data/primary-mwb/";
+        ? `${API_BASE_URL}/api/activity/add_user_activity`
+        : `${API_BASE_URL}/api/activity/add_trigger_activity`;
 
       if (!isSpecial) {
-        endpoint = "https://meseer.com/dog/user_activity_insert";
+        endpoint = `${API_BASE_URL}/api/activity/add_user_activity`;
       }
       // console.log(payload);
       await fetch(endpoint, {

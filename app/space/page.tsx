@@ -871,7 +871,6 @@ export default function SpacePage() {
           name: newName,
           refresh_type: wordpad.refresh_type,
           subspace_id: activeSubspace?.subspace_id,
-          user_id: userId
         })
       });
 
