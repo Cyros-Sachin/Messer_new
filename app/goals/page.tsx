@@ -577,11 +577,15 @@ const GoalsPage = () => {
 
         const token = getUserToken();
         try {
-            const response = await fetch(`https://meseer.com/dog/todo_content/${tc_id}`, {
-                method: "DELETE",
+            const response = await fetch(`${API_BASE_URL}/api/todo/delete_todo_content`, {
+                method: "POST",
                 headers: {
                     'Authorization': `Bearer ${token}`,
+                    "Content-Type": "application/json"
                 },
+                body: JSON.stringify({
+                    tc_id: tc_id
+                })
             });
 
             if (response.ok) {
@@ -903,8 +907,8 @@ const GoalsPage = () => {
             const endpoint = currentEvent?.isaction_log
                 ? `https://meseer.com/dog/update_delete_actionlogs/${currentEvent.action_log_id}`
                 : isUpdate
-                    ? "https://meseer.com/dog/update-delete-data/primary-mwb"
-                    : "https://meseer.com/dog/add-data/primary-mwb/";
+                    ? "https://datawheels.org/api/activity/update_delete_trigger_activity"
+                    : "https://datawheels.org/api/activity/add_trigger_activity";
 
             await fetch(endpoint, {
                 method: "POST",
@@ -953,7 +957,7 @@ const GoalsPage = () => {
         };
 
         try {
-            const endpoint = 'https://meseer.com/dog/update-delete-data/primary-mwb'
+            const endpoint = 'https://datawheels.org/api/activity/update_delete_trigger_activity'
             await fetch(endpoint, {
                 method: 'POST',
                 headers: {
@@ -983,7 +987,7 @@ const GoalsPage = () => {
 
             const endpoint = isActionLog
                 ? `https://meseer.com/dog/update_delete_actionlogs/${currentEvent.action_log_id}`
-                : `https://meseer.com/dog/update-delete-data/primary-mwb`;
+                : `https://datawheels.org/api/activity/update_delete_trigger_activity`;
 
             await fetch(endpoint, {
                 method: "POST",
@@ -1570,7 +1574,7 @@ const GoalsPage = () => {
                 event_time: now
             };
             // console.log(payload);
-            const res = await fetch('https://meseer.com/dog/add-data/primary-mwb/', {
+            const res = await fetch('https://datawheels.org/api/activity/add_trigger_activity', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1619,7 +1623,7 @@ const GoalsPage = () => {
                 event_time: now
             };
             console.log(payload);
-            // const res = await fetch('https://meseer.com/dog/add-data/primary-mwb/', {
+            // const res = await fetch('https://datawheels.org/api/activity/add_trigger_activity', {
             //     method: 'POST',
             //     headers: {
             //         'Content-Type': 'application/json',
@@ -2540,7 +2544,7 @@ const GoalsPage = () => {
                                                     action: "DELETE",
                                                     cat_qty_id1: newEventData.taskId
                                                 };
-                                                await fetch(`https://meseer.com/dog/update-delete-data/primary-mwb`, {
+                                                await fetch(`https://datawheels.org/api/activity/update_delete_trigger_activity`, {
                                                     method: "POST",
                                                     headers: {
                                                         Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -2599,8 +2603,8 @@ const GoalsPage = () => {
                                         }
                                         try {
                                             const endpoint = isEditing
-                                                ? 'https://meseer.com/dog/update-delete-data/primary-mwb'
-                                                : 'https://meseer.com/dog/add-data/primary-mwb/';
+                                                ? 'https://datawheels.org/api/activity/update_delete_trigger_activity'
+                                                : 'https://datawheels.org/api/activity/add_trigger_activity';
 
                                             await fetch(endpoint, {
                                                 method: 'POST',
