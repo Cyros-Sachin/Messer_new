@@ -145,6 +145,7 @@ export default function LoginPage() {
           : { email: formData.email, password: formData.password };
 
       const res = await axios.post(url, body);
+      setIsSignup(false);
 
       if (!isForgot) {
         // Set cookie expiration based on remember me
@@ -165,7 +166,7 @@ export default function LoginPage() {
         });
 
         setTimeout(() => {
-          router.push(`${isSignup ? "/login" : "/main"}`);
+          router.push(`${isSignup ? "" : "/main"}`);
         }, 1500);
       } else {
         toast.success("Password reset link has been sent to your email", {

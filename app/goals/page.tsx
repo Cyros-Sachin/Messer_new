@@ -903,9 +903,12 @@ const GoalsPage = () => {
                 }
             }
         }
+        if (currentEvent.isaction_log) {
+            payload.action_log_id = currentEvent.action_log_id;
+        }
         try {
             const endpoint = currentEvent?.isaction_log
-                ? `https://meseer.com/dog/update_delete_actionlogs/${currentEvent.action_log_id}`
+                ? `https://datawheels.org/api/activity/update_delete_actionlogs`
                 : isUpdate
                     ? "https://datawheels.org/api/activity/update_delete_trigger_activity"
                     : "https://datawheels.org/api/activity/add_trigger_activity";
@@ -976,7 +979,7 @@ const GoalsPage = () => {
         try {
             const isActionLog = !!currentEvent?.action_log_id;
 
-            const payload = {
+            const payload : any = {
                 ua_id: currentEvent?.ua_id,
                 a_id: repeatToAidMap[currentEvent?.repeat ?? "once"],
                 at_id: 302,
@@ -984,9 +987,12 @@ const GoalsPage = () => {
                 action: "DELETE",
                 cat_qty_id1: isActionLog ? currentEvent?.action_log_id : currentEvent?.action_id,
             };
+            if (isActionLog) {
+                payload.action_log_id = currentEvent.action_log_id;
+            }
 
             const endpoint = isActionLog
-                ? `https://meseer.com/dog/update_delete_actionlogs/${currentEvent.action_log_id}`
+                ? `https://datawheels.org/api/activity/update_delete_actionlogs`
                 : `https://datawheels.org/api/activity/update_delete_trigger_activity`;
 
             await fetch(endpoint, {

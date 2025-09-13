@@ -82,44 +82,37 @@ export const fetchActionsForTasks = async (
   token: string
 ): Promise<Record<string, any[]>> => {
   const actionsByTask: Record<string, any[]> = {};
-  const fixedAIds = [30, 31, 32];
 
   for (const taskId of taskIds) {
     const allActions: any[] = [];
 
-    for (const aid of fixedAIds) {
-      try {
-        const res = await fetch(
-          `${BASE_URL}/api/action/get_all_actions_based_task`,
-          {
-            method:"POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              task_id: taskId
-            })
-          }
-        );
-
-        if (Array.isArray(res)) {
-          // Check validity ONLY when the key exists
-          const filtered = res.filter(action => {
-            if (action.validity_flag && action.validity_flag === "expired") {
-              return false;
-            }
-            return true;
-          });
-          // console.log(filtered);
-          allActions.push(...filtered);
+    try {
+      const res = await fetch(
+        `${BASE_URL}/api/action/get_all_actions_based_task`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ task_id: taskId, user_id: userId }), // include userId if required
         }
-      } catch (err) {
-        console.error(
-          `Failed to fetch actions for task ${taskId} with a_id ${aid}`,
-          err
-        );
+      );
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
+
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        const filtered = data.filter(
+          (action) => !(action.validity_flag && action.validity_flag === "expired")
+        );
+        allActions.push(...filtered);
+      }
+    } catch (err) {
+      console.error(`Failed to fetch actions for task ${taskId}`, err);
     }
 
     actionsByTask[taskId] = allActions;
@@ -127,6 +120,7 @@ export const fetchActionsForTasks = async (
 
   return actionsByTask;
 };
+
 
 // Helper to parse "20/11/2025 00:00"
 export function parseCustomDateTime(dateStr: string): Date | null {
