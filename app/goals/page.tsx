@@ -215,7 +215,7 @@ const GoalsPage = () => {
         const d = new Date(dateStr);
         const offset = d.getTimezoneOffset();
         const localDate = new Date(d.getTime() - offset * 60000);
-        return localDate.toISOString().slice(0, 16);
+        return localDate.toISOString().slice(0, 19);
     };
 
     const formatTime = (date: Date) => {
@@ -492,7 +492,7 @@ const GoalsPage = () => {
     const handleAddTask = async () => {
         const userId = getUserId();
         const token = getUserToken();
-        const now = new Date().toISOString().slice(0,16);
+        const now = new Date().toISOString().slice(0, 16);
 
         try {
             const response = await fetch(`${API_BASE_URL}/api/todo/add_todo_content`, {
@@ -635,11 +635,12 @@ const GoalsPage = () => {
                         const eventsData = await fetchEvents(userId, collectiveId);
                         if (Array.isArray(eventsData)) {
                             const transformedEvents: Event[] = eventsData.map((item) => {
+                                const start = item.value4;
                                 return {
                                     id: `event-${item.ua_id}`,
                                     title: item.value3 || "Untitled Event",
-                                    start: item.value4,
-                                    end: item.value4,
+                                    start: start,
+                                    end: start,
                                     ua_id: item.ua_id,
                                     goalId: goal.id,
                                     taskId: task.collective_id,
@@ -979,7 +980,7 @@ const GoalsPage = () => {
         try {
             const isActionLog = !!currentEvent?.action_log_id;
 
-            const payload : any = {
+            const payload: any = {
                 ua_id: currentEvent?.ua_id,
                 a_id: repeatToAidMap[currentEvent?.repeat ?? "once"],
                 at_id: 302,
@@ -1361,7 +1362,7 @@ const GoalsPage = () => {
 
     const handleDateClick = (arg: any) => {
         const clickedDate = arg.date;
-        const selectedGoalObj = goals.find(g => g.id === selectedGoalId);
+        const selectedGoalObj = goals.find(g => g.id === selectedGoalId) || goals.find(g => g.id === goals[0]?.id);
         const selectedTaskObj = selectedGoalObj?.tasks?.find(
             (t) => t.id === selectedTaskId
         );
@@ -1392,7 +1393,6 @@ const GoalsPage = () => {
                 color: '#3b82f6',
                 repeat: "once"
             });
-
             setShowEventModal(true);
         }
     };
@@ -1648,7 +1648,7 @@ const GoalsPage = () => {
             alert("Error creating task");
         }
     };
-    
+
     return (
         <div className="flex h-screen bg-gray-50">
             {/* Sidebar */}
@@ -2594,7 +2594,7 @@ const GoalsPage = () => {
                                             value1: "",
                                             value2: "",
                                             value3: newEventData.title,
-                                            value4: newEventData.start,
+                                            value4: toLocalDateTimeInputValue(newEventData.start),
                                             value5: "",
                                             value6: "",
                                             cat_qty_id2: 0,
@@ -2611,7 +2611,7 @@ const GoalsPage = () => {
                                             const endpoint = isEditing
                                                 ? 'https://datawheels.org/api/activity/update_delete_trigger_activity'
                                                 : 'https://datawheels.org/api/activity/add_trigger_activity';
-
+                                            // console.log(payload);
                                             await fetch(endpoint, {
                                                 method: 'POST',
                                                 headers: {
