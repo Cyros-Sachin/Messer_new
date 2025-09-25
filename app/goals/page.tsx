@@ -862,7 +862,7 @@ const GoalsPage = () => {
 
                 if (!isNaN(hour) && !isNaN(minute)) {
                     targetDate.setHours(hour, minute, 0, 0);
-                    payload.by_datetime_value = targetDate.toISOString().slice(0, 16);
+                    payload.by_datetime_value = targetDate.toISOString().slice(0, 19);
                     payload.action_timestamp = event_time;
                     payload.cat_qty_id4 = selectedDayCatId;
                     payload.cat_qty_id5 = 59;
@@ -893,7 +893,7 @@ const GoalsPage = () => {
                     const hh = String(targetDate.getHours()).padStart(2, "0");
                     const min = String(targetDate.getMinutes()).padStart(2, "0");
 
-                    payload.by_datetime_value = `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+                    payload.by_datetime_value = `${yyyy}-${mm}-${dd}T${hh}:${min}:00`;
                     payload.action_timestamp = event_time;
                     payload.cat_qty_id4 = 39;
                     payload.value4 = start_date;
@@ -1385,7 +1385,7 @@ const GoalsPage = () => {
 
             setCurrentEvent({
                 goalId: selectedGoalId || goals[0]?.id || '',
-                taskId: selectedTaskId || selectedGoalObj?.id,
+                taskId: selectedTaskId || selectedTaskObj?.id || selectedGoalObj?.tasks?.[0]?.id,
                 id: '',
                 title: '',
                 start: startDate.toISOString(),
