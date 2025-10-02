@@ -190,7 +190,14 @@ const GoalsPage = () => {
     const [draggingActionId, setDraggingActionId] = useState<string | null>(null);
     const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
     const [calendarApi, setCalendarApi] = useState<any>(null);
-
+    const [taskForm, setTaskForm] = useState({
+        taskName: '',
+        deadline: '',
+        hoursCommitted: '',
+        frequency: '',
+        currentProgress: '',
+        completed: ''
+    });
     const timeGridRef = useRef<HTMLDivElement>(null);
     const calendarButtonRef = useRef<HTMLButtonElement>(null);
     const calendarRef = useRef<any>(null);
@@ -207,9 +214,9 @@ const GoalsPage = () => {
         cat_qty_id5: 2,
     });
     const [showTaskDialog, setShowTaskDialog] = useState(false);
-    const [taskForm, setTaskForm] = useState({
-        value3: '', // task name/title
-    });
+    const [subspaces, setSubspaces] = useState<{ subspace_id: number; name: string }[]>([]);
+    const [selectedSubspace, setSelectedSubspace] = useState<{ subspace_id: number; name: string } | null>(null);
+
     // Helper functions
     const toLocalDateTimeInputValue = (dateStr: string): string => {
         const d = new Date(dateStr);
@@ -1542,6 +1549,37 @@ const GoalsPage = () => {
             }
         }
     }, [goals]);
+    useEffect(() => {
+        const fetchSubspaces = async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/subspace/combined_space_subspace`, {
+                    headers: { Authorization: `Bearer ${getUserToken()}` },
+                });
+                const data = await res.json();
+
+                // Transform into flat array with proper labels
+                const transformed = Object.entries(data).flatMap(([spaceKey, subspaceArrRaw]) => {
+                    const subspaceArr = subspaceArrRaw as Record<string, number>[];
+                    const spaceLabel = spaceKey.split(",")[1]?.replace("]", "").trim(); // e.g. "Work"
+
+                    return subspaceArr.map((sub) => {
+                        const label = Object.keys(sub)[0];
+                        const id = Object.values(sub)[0];
+                        return {
+                            subspace_id: id,
+                            name: `${spaceLabel} - ${label}`,
+                        };
+                    });
+                });
+
+                setSubspaces(transformed);
+            } catch (err) {
+                console.error("Failed to fetch subspaces", err);
+            }
+        };
+
+        fetchSubspaces();
+    }, []);
 
     // Generate time slots from 5:30 AM to 8:30 PM
     const timeSlots = Array.from({ length: 24 }, (_, i) => {
@@ -1599,6 +1637,12 @@ const GoalsPage = () => {
         }
     };
 
+    const formatDateToDDMMYYYY = (dateStr: string) => {
+        if (!dateStr) return "";
+        const [year, month, day] = dateStr.split("-");
+        return `${day}/${month}/${year}`;
+    };
+
     const handleSubmitTask = async () => {
         try {
             const userId = getUserId();
@@ -1610,14 +1654,14 @@ const GoalsPage = () => {
                 at_id: 301,
                 a_id: 27,
                 cat_qty_id1: 0,
-                cat_qty_id2: selectedGoalId,
+                cat_qty_id2: Number(selectedGoalId),
                 cat_qty_id3: 23,
                 cat_qty_id4: 0,
                 cat_qty_id5: 0,
                 cat_qty_id6: 0,
-                value1: "0",
+                value1: "",
                 value2: "",
-                value3: taskForm.value3,
+                value3: taskForm.taskName,
                 value4: "",
                 value5: "",
                 value6: "",
@@ -1629,20 +1673,56 @@ const GoalsPage = () => {
                 event_time: now
             };
             console.log(payload);
-            // const res = await fetch('https://datawheels.org/api/activity/add_trigger_activity', {
-            //     method: 'POST',
-            //     headers: {
-            //         'Content-Type': 'application/json',
-            //         'Authorization': `Bearer ${getUserToken()}`
-            //     },
-            //     body: JSON.stringify(payload),
-            // });
 
-            // if (!res.ok) throw new Error("Failed to create task");
-            // 
-            // setSelectedGoalId('');
-            // setShowTaskDialog(false);
-            // await reload();
+            const res = await fetch('https://datawheels.org/api/activity/add_trigger_activity', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getUserToken()}`
+                },
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) throw new Error("Failed to create task");
+            const firstResponse = await res.json();
+            const collectiveId = firstResponse?.collective_id?.collective_id;
+            if (!collectiveId) throw new Error("collective_id missing in response");
+            const payload_build = {
+                user_id: userId,
+                flag: "PH",
+                at_id: 302,
+                a_id: 29,
+                cat_qty_id1: collectiveId,
+                cat_qty_id2: 47,
+                cat_qty_id3: Number(taskForm.frequency),
+                cat_qty_id4: 2,
+                cat_qty_id5: selectedSubspace?.subspace_id,
+                cat_qty_id6: 0,
+                value1: "",
+                value2: formatDateToDDMMYYYY(taskForm.deadline),
+                value3: taskForm.hoursCommitted,
+                value4: taskForm.completed,
+                value5: selectedSubspace?.name,
+                value6: "",
+                trigger: "build task",
+                is_active: "Y",
+                description: `Task is added at ${now}`,
+                event_time: now
+            };
+
+            console.log(payload_build);
+            const response = await fetch('https://datawheels.org/api/activity/add_trigger_activity', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getUserToken()}`
+                },
+                body: JSON.stringify(payload_build),
+            });
+            if (!response.ok) throw new Error("Failed to create task");
+
+            setSelectedGoalId('');
+            setShowTaskDialog(false);
+            await reload();
         } catch (err) {
             console.error("Task creation failed", err);
             alert("Error creating task");
@@ -2977,41 +3057,108 @@ const GoalsPage = () => {
             {showTaskDialog && (
                 <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center">
                     <form
-                        onSubmit={(e) => {
-                            e.preventDefault();
-                            if (!taskForm.value3.trim()) {
-                                toast.error("Task name is required");
-                                return;
-                            }
-                            handleSubmitTask();
-                        }}
+                        onSubmit={(e) => { e.preventDefault(); handleSubmitTask(); }}
                         className="bg-white rounded-xl p-6 w-full max-w-md shadow-lg space-y-4"
                     >
-                        <h2 className="text-2xl font-semibold text-gray-800">Create Task</h2>
+                        <h2 className="text-2xl font-semibold text-gray-800">Add Task</h2>
+
+                        {/* Task Name */}
                         <div className="space-y-2">
-                            <label className="text-sm text-gray-600">Task Name</label>
+                            <label className="text-sm font-medium text-gray-700">Task</label>
                             <input
                                 type="text"
-                                placeholder="e.g., Make notes"
-                                value={taskForm.value3}
-                                onChange={(e) => setTaskForm({ ...taskForm, value3: e.target.value })}
-                                title="name of the task to be completed"
-                                className="w-full border px-3 py-2 rounded-md focus:ring-2 focus:ring-blue-500"
+                                placeholder="e.g., Make a Short Film"
+                                value={taskForm.taskName}
+                                onChange={(e) => setTaskForm({ ...taskForm, taskName: e.target.value })}
+                                className="w-full border border-gray-300 px-3 py-2 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             />
                         </div>
-                        <div className="flex justify-end gap-2 mt-4">
+
+                        {/* Deadline */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Deadline</label>
+                            <input
+                                type="date"
+                                placeholder="dd/mm/yyyy"
+                                value={taskForm.deadline}
+                                onChange={(e) => setTaskForm({ ...taskForm, deadline: e.target.value })}
+                                className="w-full border border-gray-300 px-3 py-2 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+
+                        {/* Hours Committed */}
+                        <div className="flex space-x-4">
+                            <div className="space-y-2 flex-1">
+                                <label className="text-sm font-medium text-gray-700">Efforts needed to complete</label>
+                                <input
+                                    type="text"
+                                    placeholder="Quantity"
+                                    value={taskForm.hoursCommitted}
+                                    onChange={(e) => setTaskForm({ ...taskForm, hoursCommitted: e.target.value })}
+                                    className="w-full border border-gray-300 px-3 py-2 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                            </div>
+
+                            {/* Frequency */}
+                            <div className="space-y-2 flex-1">
+                                <label className="text-sm font-medium text-gray-700">Frequency</label>
+                                <select
+                                    value={taskForm.frequency}
+                                    onChange={(e) => setTaskForm({ ...taskForm, frequency: e.target.value })}
+                                    className="w-full border border-gray-300 px-3 py-2 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value="53">hpd</option>
+                                    <option value="54">hpw</option>
+                                    <option value="55">hpm</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Progress Section */}
+
+                        <div className="space-y-2 ">
+                            <label className="text-sm font-medium text-gray-700">Completed (%)</label>
+                            <input
+                                type="text"
+                                value={taskForm.completed}
+                                onChange={(e) => setTaskForm({ ...taskForm, completed: e.target.value })}
+                                className="w-full border border-gray-300 px-3 py-2 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+                        <div className="mb-3">
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">Select Subspace</label>
+                            <select
+                                className="w-full border rounded px-3 py-2"
+                                value={selectedSubspace?.subspace_id || ""}
+                                onChange={(e) => {
+                                    const sub = subspaces.find(s => s.subspace_id === Number(e.target.value));
+                                    if (sub) setSelectedSubspace(sub);
+                                }}
+                            >
+                                <option value="">Select...</option>
+                                {subspaces.map((s) => (
+                                    <option key={s.subspace_id} value={s.subspace_id}>
+                                        {s.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+
+                        {/* Buttons */}
+                        <div className="flex justify-end gap-2 pt-4">
                             <button
                                 type="button"
                                 onClick={() => setShowTaskDialog(false)}
-                                className="px-4 py-2 text-sm bg-gray-200 rounded hover:bg-gray-300"
+                                className="px-4 py-2 text-sm bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
-                                className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                             >
-                                Submit
+                                Add
                             </button>
                         </div>
                     </form>
