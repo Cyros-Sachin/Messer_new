@@ -1,0 +1,19 @@
+services:
+  frontend:
+    image: frontend:${TAG:-latest}
+    build:
+      context: /
+      dockerfile: Dockerfile
+      cache_from:
+        - frontend:cache
+    env_file:
+      - /.env.local
+    ports:
+      - "3000:3000"
+    networks:
+      - me_seer-network
+    restart: unless-stopped
+
+networks:
+  me_seer-network:
+    external: true

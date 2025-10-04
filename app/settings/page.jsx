@@ -9,17 +9,20 @@ import IntegrationSettings from '../components/settings/IntegrationSettings'
 import PlanSettings from '../components/settings/PlanSettings'
 import LegalSettings from '../components/settings/LegalSettings'
 
+// Import icons
+import { User, SettingsIcon, Bell, Link2, Heart, FileText } from 'lucide-react'
+
 const tabs = [
-  'Account',
-  'General',
-  'Notifications',
-  'Integrations',
-  'Plans',
-  'Legal & Info',
+  { id: 'Account', label: 'Account', icon: <User className="w-5 h-5" /> },
+  { id: 'General', label: 'General', icon: <SettingsIcon className="w-5 h-5" /> },
+  { id: 'Notifications', label: 'Notifications', icon: <Bell className="w-5 h-5" /> },
+  { id: 'Integrations', label: 'Integrations', icon: <Link2 className="w-5 h-5" /> },
+  { id: 'Plans', label: 'Plans', icon: <Heart className="w-5 h-5" /> },
+  { id: 'Legal & Info', label: 'Legal & Info', icon: <FileText className="w-5 h-5" /> },
 ]
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState('Account')
+  const [activeTab, setActiveTab] = useState('General') // default to General like screenshot
 
   const renderTab = () => {
     switch (activeTab) {
@@ -36,7 +39,7 @@ export default function SettingsPage() {
   return (
     <div className="flex min-h-screen bg-gray-50 text-gray-800">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} tabs={tabs} />
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-8">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
