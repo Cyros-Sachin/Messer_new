@@ -145,8 +145,29 @@ export default function LoginPage() {
           : { email: formData.email, password: formData.password };
 
       const res = await axios.post(url, body);
+      if (isSignup) {
+        const response = res.data;
+        const user_id = response.uid;
+        console.log(user_id);
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/setting/create_general_setting`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: user_id,
+            apperance: "1",
+            language: "1",
+            date_format: "ISO",
+            time_format: "24H",
+            timezone_via_location: "0",
+            timezone: "374",
+            cookie_setting: "1",
+            support_access: "0",
+          }),
+        });
+      }
       setIsSignup(false);
-
       if (!isForgot) {
         // Set cookie expiration based on remember me
         const expires = formData.rememberMe ? 30 : 7; // 30 days if remember me is checked
@@ -166,7 +187,7 @@ export default function LoginPage() {
         });
 
         setTimeout(() => {
-          router.push(`${isSignup ? "" : "/main"}`);
+          router.push(`${isSignup ? "/login" : "/main"}`);
         }, 1500);
       } else {
         toast.success("Password reset link has been sent to your email", {

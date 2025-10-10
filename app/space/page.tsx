@@ -10,6 +10,7 @@ import { WordpadEditor } from "../components/WordpadEditor"
 import toast from "react-hot-toast";
 import { LayoutGrid } from "lucide-react"; // use any icon you like
 // At the top of your page
+import { SettingsProvider } from "../context/SettingsContext";
 import {
   DndContext,
   closestCenter,
@@ -19,16 +20,16 @@ import {
   DragEndEvent,
   DragOverlay,
 } from "@dnd-kit/core";
-
+import { useSettings } from "@/app/context/SettingsContext";
 import {
   SortableContext,
   verticalListSortingStrategy,
   useSortable,
   arrayMove,
 } from "@dnd-kit/sortable";
-
+import parseDateTime from "@/app/utils/parseDateTime";
 import { CSS } from "@dnd-kit/utilities";
-
+import formatDateTime from "@/app/utils/parseTime";
 // API Base URL
 import SideBar from "../components/SideBar";
 import { triggerToast } from "../components/CustomToast";
@@ -243,7 +244,7 @@ const SpaceService = {
     const data = await response.json();
     return Array.isArray(data) ? data : [];
   },
-  
+
   createWordpadContent: async (payload: {
     wordpad_id: string;
     user_id: string;
@@ -278,7 +279,7 @@ const SpaceService = {
     const response = await fetch(`${API_BASE_URL}/api/todo/delete_todo`, {
       method: 'POST',
       headers: SpaceService.getHeaders(),
-      body: JSON.stringify({todo_id: todoId})
+      body: JSON.stringify({ todo_id: todoId })
     });
     return response.json();
   },
@@ -330,7 +331,7 @@ export default function SpacePage() {
   const [gridCols, setGridCols] = useState(3); // default: 3 per row
   const sensors = useSensors(useSensor(PointerSensor));
   const [activeId, setActiveId] = useState<string | null>(null);
-
+  const { settings } = SettingsProvider();
   function SortableTodo({
     id,
     children,
@@ -699,7 +700,7 @@ export default function SpacePage() {
       const response = await fetch(`${API_BASE_URL}/api/subspace/delete_subspace`, {
         method: 'POST',
         headers: SpaceService.getHeaders(),
-        body: JSON.stringify({subspace_id : currentSubspace.subspace_id})
+        body: JSON.stringify({ subspace_id: currentSubspace.subspace_id })
       });
       if (!response.ok) throw new Error('Failed to delete subspace');
 
@@ -867,7 +868,7 @@ export default function SpacePage() {
         method: "POST",
         headers: SpaceService.getHeaders(),
         body: JSON.stringify({
-          wordpad_id : wordpad.wordpad_id,
+          wordpad_id: wordpad.wordpad_id,
           name: newName,
           refresh_type: wordpad.refresh_type,
           subspace_id: activeSubspace?.subspace_id,
@@ -934,7 +935,7 @@ export default function SpacePage() {
 
     try {
       const userId = getUserId();
-      const now = new Date().toISOString().slice(0,16);
+      const now = new Date().toISOString().slice(0, 16);
       const refresh_type = todos.find(t => String(t.todo_id) === todoId)?.refresh_type || "daily";
       const version = 1;
 
@@ -1231,8 +1232,6 @@ export default function SpacePage() {
                                   />
                                 </div>
 
-
-                                {/* Collapsible Content */}
                                 <AnimatePresence initial={false}>
                                   {!isCollapsed && (
                                     <motion.div
@@ -1246,51 +1245,77 @@ export default function SpacePage() {
                                       <div className="px-3 py-4 space-y-2 h-60 overflow-y-auto">
                                         {(() => {
                                           const historyItems = (todo as any).contents || [];
-                                          const validRefreshType = ['daily', 'weekly', 'monthly'].includes(todo.refresh_type || '')
-                                            ? (todo.refresh_type as 'daily' | 'weekly' | 'monthly')
-                                            : 'daily';
+                                          const validRefreshType = ["daily", "weekly", "monthly"].includes(
+                                            todo.refresh_type || ""
+                                          )
+                                            ? (todo.refresh_type as "daily" | "weekly" | "monthly")
+                                            : "daily";
 
-                                          const grouped = groupByRefreshTypeDate(historyItems, validRefreshType);
+                                          const grouped = groupByRefreshTypeDate(
+                                            historyItems,
+                                            validRefreshType
+                                          );
 
-                                          return currentView === "history" ? (
-                                            [...Object.entries(grouped)]
+                                          // 🕓 Get user preferred formats (defaults)
+                                          const userDateFormat = settings?.date_format || "EU";
+                                          const userTimeFormat = settings?.time_format || "24H";
+
+                                          // ------------------------ HISTORY VIEW ------------------------
+                                          if (currentView === "history") {
+                                            return [...Object.entries(grouped)]
                                               .sort(([a], [b]) => {
-                                                const getSortableDate = (key: string) => {
-                                                  if (validRefreshType === 'daily') {
+                                                const parseKeyToDate = (key: string) => {
+                                                  if (validRefreshType === "daily") {
                                                     // key: "Monday, 17/06/2025"
-                                                    const datePart = key.split(', ')[1]; // "17/06/2025"
-                                                    const [day, month, year] = datePart.split('/').map(Number);
-                                                    return new Date(year, month - 1, day).getTime();
-                                                  } else if (validRefreshType === 'weekly') {
+                                                    const datePart = key.split(", ")[1];
+                                                    return new Date(
+                                                      datePart.split("/").reverse().join("-")
+                                                    ).getTime();
+                                                  } else if (validRefreshType === "weekly") {
                                                     // key: "Week of 23/06/2025"
-                                                    const datePart = key.replace('Week of ', '').trim(); // "23/06/2025"
-                                                    const [day, month, year] = datePart.split('/').map(Number);
-                                                    return new Date(year, month - 1, day).getTime();
+                                                    const datePart = key.replace("Week of ", "").trim();
+                                                    return new Date(
+                                                      datePart.split("/").reverse().join("-")
+                                                    ).getTime();
                                                   } else {
-                                                    // key: "June 2025" → parseable by Date
+                                                    // key: "June 2025"
                                                     return new Date(key).getTime();
                                                   }
                                                 };
-
-                                                return getSortableDate(b) - getSortableDate(a); // Descending order
+                                                return parseKeyToDate(b) - parseKeyToDate(a);
                                               })
-
                                               .map(([date, items]) => (
                                                 <div key={date} className="mb-4">
-                                                  <div className="bg-gray-200 px-2 py-1 text-sm font-semibold rounded">{date}</div>
+                                                  <div className="bg-gray-200 px-2 py-1 text-sm font-semibold rounded">
+                                                    {date}
+                                                  </div>
                                                   <ul className="mt-2 space-y-1">
                                                     {items.map((item: any) => (
-                                                      <li key={item.tc_id} className="flex items-center gap-2 justify-between">
+                                                      <li
+                                                        key={item.tc_id}
+                                                        className="flex items-center gap-2 justify-between"
+                                                      >
                                                         <div className="flex items-center gap-2">
-                                                          <input type="checkbox" checked={item.checked} readOnly />
-                                                          <span className={`text-sm ${item.checked ? 'line-through text-gray-600' : ''}`}>
+                                                          <input
+                                                            type="checkbox"
+                                                            checked={item.checked}
+                                                            readOnly
+                                                          />
+                                                          <span
+                                                            className={`text-sm ${item.checked
+                                                              ? "line-through text-gray-600"
+                                                              : ""
+                                                              }`}
+                                                          >
                                                             {item.content}
                                                           </span>
                                                         </div>
 
                                                         {/* ♻️ Reuse Button */}
                                                         <button
-                                                          onClick={() => handleReuseItem(todo.todo_id, item.content)}
+                                                          onClick={() =>
+                                                            handleReuseItem(todo.todo_id, item.content)
+                                                          }
                                                           className="p-1 rounded hover:bg-blue-100 text-blue-600 transition"
                                                           title="Reuse this item"
                                                         >
@@ -1298,141 +1323,178 @@ export default function SpacePage() {
                                                         </button>
                                                       </li>
                                                     ))}
-
                                                   </ul>
                                                 </div>
-                                              ))
-                                          )
-                                            : (
-                                              // fallback to your existing view logic for unchecked/checked
-                                              (todo as any).contents?.filter((item: any) => {
-                                                const now = new Date();
-                                                const itemDate = new Date(item.last_updated);
+                                              ));
+                                          }
 
-                                                const isCurrent = (() => {
-                                                  if (todo.refresh_type === 'daily') {
-                                                    const diffMs = now.getTime() - itemDate.getTime();
-                                                    return diffMs < 24 * 60 * 60 * 1000;   // keep as current for 24 h
+                                          // ------------------------ ACTIVE VIEW (unchecked / checked) ------------------------
+
+                                          const filtered = (todo as any).contents?.filter((item: any) => {
+                                            if (!item.last_updated) return false;
+
+                                            const itemDate = parseDateTime(
+                                              item.last_updated,
+                                              settings?.date_format || "EU",
+                                              settings?.time_format || "24H"
+                                            );
+
+                                            const now = new Date();
+
+                                            const isCurrent = (() => {
+                                              if (todo.refresh_type === "daily") {
+                                                return (
+                                                  itemDate.getDate() === now.getDate() &&
+                                                  itemDate.getMonth() === now.getMonth() &&
+                                                  itemDate.getFullYear() === now.getFullYear()
+                                                );
+                                              } else if (todo.refresh_type === "weekly") {
+                                                const startOfWeek = new Date(now);
+                                                startOfWeek.setDate(now.getDate() - now.getDay());
+                                                startOfWeek.setHours(0, 0, 0, 0);
+
+                                                const endOfWeek = new Date(startOfWeek);
+                                                endOfWeek.setDate(startOfWeek.getDate() + 7);
+                                                return itemDate >= startOfWeek && itemDate < endOfWeek;
+                                              } else if (todo.refresh_type === "monthly") {
+                                                return (
+                                                  itemDate.getMonth() === now.getMonth() &&
+                                                  itemDate.getFullYear() === now.getFullYear()
+                                                );
+                                              }
+                                              return true;
+                                            })();
+
+                                            if (!isCurrent) return false;
+                                            if (currentView === "unchecked") return !item.checked;
+                                            if (currentView === "checked") return item.checked;
+                                            return true;
+                                          });
+                                          return filtered?.map((item: any) => (
+                                            <motion.div
+                                              key={`${todo.todo_id}-${item.tc_id}`}
+                                              initial={{ opacity: 0, y: 5 }}
+                                              animate={{ opacity: 1, y: 0 }}
+                                              exit={{ opacity: 0, y: -5 }}
+                                              transition={{ duration: 0.2 }}
+                                              className="group flex items-center justify-between px-3 py-2 rounded-xl bg-white shadow-sm hover:shadow-md transition-all"
+                                            >
+                                              <div className="flex items-center gap-3 overflow-hidden w-full">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={item.checked}
+                                                  onChange={() =>
+                                                    handleToggleCheck(todo.todo_id, item.tc_id)
                                                   }
-                                                  else if (todo.refresh_type === 'weekly') {
-                                                    const startOfWeek = new Date(now);
-                                                    startOfWeek.setDate(now.getDate() - now.getDay());
-                                                    const endOfWeek = new Date(startOfWeek);
-                                                    endOfWeek.setDate(startOfWeek.getDate() + 6);
-                                                    return itemDate >= startOfWeek && itemDate <= endOfWeek;
-                                                  } else if (todo.refresh_type === 'monthly') {
-                                                    return now.getMonth() === itemDate.getMonth() &&
-                                                      now.getFullYear() === itemDate.getFullYear();
-                                                  }
-                                                  return true;
-                                                })();
+                                                  className="accent-blue-600 w-4 h-4 rounded"
+                                                />
 
-                                                if (!isCurrent) return false;
-                                                if (currentView === "unchecked") return !item.checked;
-                                                if (currentView === "checked") return item.checked;
-                                                return true;
-                                              })
-                                                .map((item: any) => (
-                                                  <motion.div
-                                                    key={`${todo.todo_id}-${item.tc_id}`}
-                                                    initial={{ opacity: 0, y: 5 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    exit={{ opacity: 0, y: -5 }}
-                                                    transition={{ duration: 0.2 }}
-                                                    className="group flex items-center justify-between px-3 py-2 rounded-xl bg-white shadow-sm hover:shadow-md transition-all"
-                                                  >
-                                                    <div className="flex items-center gap-3 overflow-hidden w-full">
-                                                      <input
-                                                        type="checkbox"
-                                                        checked={item.checked}
-                                                        onChange={() => handleToggleCheck(todo.todo_id, item.tc_id)}
-                                                        className="accent-blue-600 w-4 h-4 rounded"
-                                                      />
-                                                      {!maximizedTodo && (editingTaskId === item.tc_id) ? (
-                                                        <input
-                                                          className="text-sm text-gray-800 truncate w-full border-b border-gray-300 focus:outline-none"
-                                                          value={editingTaskContent}
-                                                          onChange={(e) => setEditingTaskContent(e.target.value)}
-                                                          onBlur={async () => {
-                                                            if (editingTaskContent.trim() && editingTaskContent !== item.content) {
-                                                              await updateCheckStatus({ ...item, content: editingTaskContent });
-                                                              const userId = getUserId();
-                                                              if (activeSubspace) {
-                                                                const updatedTodos = await SpaceService.getTodoDataBySubspace(activeSubspace.subspace_id, userId);
-                                                                setTodos(updatedTodos);
-                                                              }
-                                                            }
-                                                            setEditingTaskId(null);
-                                                          }}
-                                                          onKeyDown={async (e) => {
-                                                            if ((e.key === 'Enter')) {
-                                                              if (editingTaskContent.trim() && editingTaskContent !== item.content) {
-                                                                await updateCheckStatus({ ...item, content: editingTaskContent });
-                                                                const userId = getUserId();
-                                                                if (activeSubspace) {
-                                                                  const updatedTodos = await SpaceService.getTodoDataBySubspace(activeSubspace.subspace_id, userId);
-                                                                  setTodos(updatedTodos);
-                                                                }
-                                                              }
-                                                              setEditingTaskId(null);
-                                                            } else if (e.key === 'Escape') {
-                                                              setEditingTaskId(null);
-                                                              setEditingTaskContent(item.content);
-                                                            }
-                                                          }}
-                                                          autoFocus
-                                                        />
-                                                      ) : (
-                                                        <span
-                                                          className="text-sm text-gray-800 truncate w-full cursor-pointer"
-                                                          onClick={() => {
-                                                            setEditingTaskId(item.tc_id);
-                                                            setEditingTaskContent(item.content);
-                                                          }}
-                                                        >
-                                                          {item.content}
-                                                        </span>
-                                                      )}
-
-                                                    </div>
-                                                    {/* api */}
-                                                    <motion.button
-                                                      whileHover={{ scale: 1.1 }}
-                                                      whileTap={{ scale: 0.9 }}
-                                                      onClick={async () => {
-                                                        try {
-                                                          await fetch(`${API_BASE_URL}/api/todo/delete_todo_content`, {
-                                                            method: "POST",
-                                                            headers: SpaceService.getHeaders(),
-                                                            body: JSON.stringify({
-                                                              tc_id: item.tc_id
-                                                            })
-                                                          });
-                                                          const userId = getUserId();
-                                                          if (activeSubspace) {
-                                                            const updatedTodos = await SpaceService.getTodoDataBySubspace(
+                                                {/* ✏️ Inline Edit Mode */}
+                                                {!maximizedTodo && editingTaskId === item.tc_id ? (
+                                                  <input
+                                                    className="text-sm text-gray-800 truncate w-full border-b border-gray-300 focus:outline-none"
+                                                    value={editingTaskContent}
+                                                    onChange={(e) =>
+                                                      setEditingTaskContent(e.target.value)
+                                                    }
+                                                    onBlur={async () => {
+                                                      if (
+                                                        editingTaskContent.trim() &&
+                                                        editingTaskContent !== item.content
+                                                      ) {
+                                                        await updateCheckStatus({
+                                                          ...item,
+                                                          content: editingTaskContent,
+                                                        });
+                                                        const userId = getUserId();
+                                                        if (activeSubspace) {
+                                                          const updatedTodos =
+                                                            await SpaceService.getTodoDataBySubspace(
                                                               activeSubspace.subspace_id,
                                                               userId
                                                             );
+                                                          setTodos(updatedTodos);
+                                                        }
+                                                      }
+                                                      setEditingTaskId(null);
+                                                    }}
+                                                    onKeyDown={async (e) => {
+                                                      if (e.key === "Enter") {
+                                                        if (
+                                                          editingTaskContent.trim() &&
+                                                          editingTaskContent !== item.content
+                                                        ) {
+                                                          await updateCheckStatus({
+                                                            ...item,
+                                                            content: editingTaskContent,
+                                                          });
+                                                          const userId = getUserId();
+                                                          if (activeSubspace) {
+                                                            const updatedTodos =
+                                                              await SpaceService.getTodoDataBySubspace(
+                                                                activeSubspace.subspace_id,
+                                                                userId
+                                                              );
                                                             setTodos(updatedTodos);
                                                           }
-                                                        } catch (err) {
-                                                          console.error("Failed to delete task:", err);
                                                         }
-                                                      }}
-                                                      className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-600 text-sm transition ml-2"
-                                                      title="Delete Task"
-                                                    >
-                                                      ❌
-                                                    </motion.button>
-                                                  </motion.div>
-                                                ))
-                                            );
+                                                        setEditingTaskId(null);
+                                                      } else if (e.key === "Escape") {
+                                                        setEditingTaskId(null);
+                                                        setEditingTaskContent(item.content);
+                                                      }
+                                                    }}
+                                                    autoFocus
+                                                  />
+                                                ) : (
+                                                  <span
+                                                    className="text-sm text-gray-800 truncate w-full cursor-pointer"
+                                                    onClick={() => {
+                                                      setEditingTaskId(item.tc_id);
+                                                      setEditingTaskContent(item.content);
+                                                    }}
+                                                  >
+                                                    {item.content}
+                                
+                                                  </span>
+                                                )}
+                                              </div>
+
+                                              {/* 🗑 Delete Button */}
+                                              <motion.button
+                                                whileHover={{ scale: 1.1 }}
+                                                whileTap={{ scale: 0.9 }}
+                                                onClick={async () => {
+                                                  try {
+                                                    await fetch(`${API_BASE_URL}/api/todo/delete_todo_content`, {
+                                                      method: "POST",
+                                                      headers: SpaceService.getHeaders(),
+                                                      body: JSON.stringify({ tc_id: item.tc_id }),
+                                                    });
+                                                    const userId = getUserId();
+                                                    if (activeSubspace) {
+                                                      const updatedTodos =
+                                                        await SpaceService.getTodoDataBySubspace(
+                                                          activeSubspace.subspace_id,
+                                                          userId
+                                                        );
+                                                      setTodos(updatedTodos);
+                                                    }
+                                                  } catch (err) {
+                                                    console.error("Failed to delete task:", err);
+                                                  }
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-600 text-sm transition ml-2"
+                                                title="Delete Task"
+                                              >
+                                                ❌
+                                              </motion.button>
+                                            </motion.div>
+                                          ));
                                         })()}
 
-
-                                        {/* New Task Input */}
-                                        {!maximizedTodo && (newTaskContentMap[todo.todo_id] !== undefined) && (
+                                        {/* ➕ New Task Input */}
+                                        {!maximizedTodo && newTaskContentMap[todo.todo_id] !== undefined && (
                                           <input
                                             autoFocus
                                             type="text"
@@ -1445,14 +1507,13 @@ export default function SpacePage() {
                                                 [todo.todo_id]: e.target.value,
                                               }))
                                             }
-                                            onBlur={() => {                                     // ⬅ NEW
-                                              setNewTaskContentMap(prev => {
+                                            onBlur={() =>
+                                              setNewTaskContentMap((prev) => {
                                                 const updated = { ...prev };
-                                                delete updated[todo.todo_id];                   // same effect as Esc
+                                                delete updated[todo.todo_id];
                                                 return updated;
-                                              });
-                                            }}
-                                            // api
+                                              })
+                                            }
                                             onKeyDown={async (e) => {
                                               if (e.key === "Enter") {
                                                 const content = newTaskContentMap[todo.todo_id].trim();
@@ -1460,10 +1521,7 @@ export default function SpacePage() {
 
                                                 try {
                                                   const userId = getUserId();
-                                                  const now = new Date().toISOString().slice(0,16);
-                                                  const refresh_type = todo.refresh_type || "daily"; // default fallback
-                                                  const version = 1; // hardcoded or adjust as needed
-
+                                                  const now = new Date().toISOString().slice(0, 16);
                                                   await fetch(`${API_BASE_URL}/api/todo/add_todo_content`, {
                                                     method: "POST",
                                                     headers: SpaceService.getHeaders(),
@@ -1473,34 +1531,37 @@ export default function SpacePage() {
                                                       checked: false,
                                                       urgent: true,
                                                       important: false,
-                                                      version,
+                                                      version: 1,
                                                       created_date: now,
                                                       last_updated: now,
                                                     }),
                                                   });
 
                                                   if (activeSubspace) {
-                                                    const updatedTodos = await SpaceService.getTodoDataBySubspace(
-                                                      activeSubspace.subspace_id,
-                                                      userId
-                                                    );
+                                                    const updatedTodos =
+                                                      await SpaceService.getTodoDataBySubspace(
+                                                        activeSubspace.subspace_id,
+                                                        userId
+                                                      );
                                                     setTodos(updatedTodos);
                                                   }
-                                                  // Check if shift key was held
-                                                  if (e.shiftKey) {
-                                                    setNewTaskContentMap(prev => ({ ...prev, [todo.todo_id]: '' }));
-                                                  } else {
-                                                    setNewTaskContentMap(prev => {
+
+                                                  if (e.shiftKey)
+                                                    setNewTaskContentMap((prev) => ({
+                                                      ...prev,
+                                                      [todo.todo_id]: "",
+                                                    }));
+                                                  else
+                                                    setNewTaskContentMap((prev) => {
                                                       const updated = { ...prev };
                                                       delete updated[todo.todo_id];
                                                       return updated;
                                                     });
-                                                  }
-                                                }
-                                                catch (err) {
+                                                } catch (err) {
                                                   console.error("Failed to add task:", err);
                                                 }
                                               }
+
                                               if (e.key === "Escape") {
                                                 setNewTaskContentMap((prev) => {
                                                   const updated = { ...prev };
@@ -1509,14 +1570,13 @@ export default function SpacePage() {
                                                 });
                                               }
                                             }}
-
                                           />
                                         )}
-
                                       </div>
                                     </motion.div>
                                   )}
-                                </AnimatePresence>
+                                </AnimatePresence>;
+
 
                                 {/* Footer */}
                                 <div className="flex items-center justify-between px-4 py-2 border-t bg-gray-50">
@@ -2271,7 +2331,7 @@ export default function SpacePage() {
                                 method: "POST",
                                 headers: SpaceService.getHeaders(),
                                 body: JSON.stringify({
-                                  tc_id : item.tc_id
+                                  tc_id: item.tc_id
                                 })
                               });
 
@@ -2336,7 +2396,7 @@ export default function SpacePage() {
 
                         /* 🔸 build task payload */
                         const userId = getUserId();
-                        const now = new Date().toISOString().slice(0,16);
+                        const now = new Date().toISOString().slice(0, 16);
                         const refresh_type = maximizedTodo.refresh_type || "daily";
                         const version = 1;
                         const newTask = {

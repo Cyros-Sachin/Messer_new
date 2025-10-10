@@ -104,8 +104,8 @@ const DynamicActivityItemForm = ({
       try {
         const isFood = trigger.toLowerCase().includes("food") || trigger.toLowerCase().includes("meal");
         const url = isFood
-            ? `${API_BASE_URL}/api/meal/food-items/search/${search}`
-            : `${API_BASE_URL}/api/workout/exercise/search/${search}`;
+          ? `${API_BASE_URL}/api/meal/food-items/search/${search}`
+          : `${API_BASE_URL}/api/workout/exercise/search/${search}`;
 
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
@@ -572,7 +572,7 @@ const DynamicActivityItemForm = ({
       if (a_id === 30) {
         // Case: Single DateTime (e.g., Add Action)
         payload.action_timestamp = event_time;
-        payload.by_datetime_value = values[4] || ""; // assuming item_id4 is a datetime-local field
+        payload.by_datetime_value = values[4] + ":00" || ""; // assuming item_id4 is a datetime-local field
       }
 
       if (a_id === 31) {
@@ -674,6 +674,56 @@ const DynamicActivityItemForm = ({
       if (a_id === 9) {
         payload.flag = "PN";
       }
+      if (a_id === 10) {
+        // --- Get selected values ---
+        const selectedDayCatId = Number(values[2]);  // item_id2 → day category
+        const selectedHourInput = Number(quantities[4]); // item_id4 → hour
+        const selectedUnit = Number(values[4]);      // item_id4 → 20=24HR, 21=AM, 22=PM
+
+        // --- Validate inputs ---
+        if (isNaN(selectedDayCatId) || isNaN(selectedHourInput) || isNaN(selectedUnit)) {
+          console.error("Invalid input for a_id 10");
+          return;
+        }
+
+        // --- Convert to 24-hour format ---
+        let selectedHour = selectedHourInput;
+
+        if (selectedUnit === 22) { // PM
+          if (selectedHour < 12) selectedHour += 12;
+        } else if (selectedUnit === 21) { // AM
+          if (selectedHour === 12) selectedHour = 0;
+        }
+        // 24HR (20) → no change
+
+        // --- Map day category → JS day index (0=Sun, 6=Sat) ---
+        const dayNameMap: Record<number, number> = {
+          76: 1, 77: 2, 78: 3, 79: 4,
+          80: 5, 81: 6, 82: 0
+        };
+        const targetDayIndex = dayNameMap[selectedDayCatId];
+        if (targetDayIndex === undefined) {
+          console.error("Invalid day category ID:", selectedDayCatId);
+          return;
+        }
+
+        // --- Calculate nearest date for selected day ---
+        const now = new Date();
+        const currentDayIndex = now.getDay();
+        let daysUntilTarget = targetDayIndex - currentDayIndex;
+        if (daysUntilTarget < 0 || (daysUntilTarget === 0 && selectedHour <= now.getHours())) {
+          daysUntilTarget += 7;
+        }
+
+        const targetLocal = new Date(now);
+        targetLocal.setDate(now.getDate() + daysUntilTarget);
+        targetLocal.setHours(selectedHour, 0, 0, 0);
+
+        // --- Convert local → UTC dynamically based on user's timezone ---
+        payload.by_datetime_value = targetLocal.toISOString().slice(0, 16);
+
+      }
+
       // 📡 Choose correct endpoint
       let endpoint = (isSpecial && (a_id === 28 || a_id === 25))
         ? `${API_BASE_URL}/api/activity/add_user_activity`

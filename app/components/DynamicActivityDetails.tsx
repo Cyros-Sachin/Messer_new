@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SquareCheck, Pencil, Trash2, Flag } from "lucide-react";
 import { it } from "node:test";
 import { getUserId, getUserToken } from "../utils/auth";
+import { templates } from "../utils/templates";
 
 const API_BASE_URL = "https://datawheels.org";
 
@@ -52,9 +53,10 @@ type Props = {
   collectiveId: number;
   activityItems: ActivityItem[];
   realCollectiveId?: number;
+  refreshTrigger?: number;
 };
 
-export default function DynamicActivityDetails({ userId, realCollectiveId, collectiveId, activityItems }: Props) {
+export default function DynamicActivityDetails({ userId, realCollectiveId, collectiveId, activityItems, refreshTrigger }: Props) {
   const [dataMap, setDataMap] = useState<Record<number, MWBEntry[]>>({});
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editedValues, setEditedValues] = useState<Record<string, string>>({});
@@ -134,231 +136,92 @@ export default function DynamicActivityDetails({ userId, realCollectiveId, colle
   const fetchAll = async () => {
     setLoading(true);
     const result: Record<number, MWBEntry[]> = {};
+    const templateUpdates: Record<number, any> = {};
 
-    for (const item of activityItems) {
-      if (item.a_id === 26) {
-        item.a_id = 24;
-      }
-      if ((item.a_id === 24 || item.a_id === 25) && realCollectiveId) {
-        return;
-      }
-      try {
-        const correctCollectiveId = (item.a_id === 29 || item.a_id === 33) ? realCollectiveId : collectiveId;
+    // ✅ Step 1: Build unique normalized a_id set safely
+    const normalizedAids = activityItems.map((item) => (item.a_id === 26 ? 24 : item.a_id));
+    const uniqueAids = Array.from(new Set(normalizedAids));
 
-        const res = await fetch(`${API_BASE_URL}/api/activity/get_generic_trigger_activity`, {
-          headers: {
-            Authorization: `Bearer ${getUserToken()}`,
-            'Content-Type': 'application/json',
-          },
-          method: "POST",
-          body: JSON.stringify({
-            pa_id: item.a_id,
-            collective_id: Number(correctCollectiveId)
-          })
-        });
+    console.log("Unique a_ids to fetch:", uniqueAids);
 
-        const json = await res.json();
-        const entriesArray = json ? Object.values(json) as MWBEntry[] : [];
+    try {
+      for (const a_id of uniqueAids) {
+        // ✅ Step 2: Skip unwanted conditions early
+        if ((a_id === 24 || a_id === 25) && realCollectiveId) continue;
 
-        // ✅ FILTERING LOGIC FOR a_id === 29
-        let filteredEntries = entriesArray;
-        if (item.a_id === 29) {
-          const taskId = collectiveId; // Using at_id as the taskId
-          filteredEntries = entriesArray.filter((entry) => entry.cat_qty_id1 === taskId);
-        }
-        if ([30, 31, 32].includes(item.a_id)) {
-          const res = await fetch(`${API_BASE_URL}/api/action/get_all_actions_based_task`, {
-            method: "POST",
+        const correctCollectiveId = (a_id === 29 || a_id === 33) ? realCollectiveId : collectiveId;
+
+        console.log(`${a_id}: Called`); // 🟢 This should now log only once per a_id
+
+        try {
+          // ✅ Step 3: Fetch only once per a_id
+          const res = await fetch(`${API_BASE_URL}/api/activity/get_generic_trigger_activity`, {
             headers: {
               Authorization: `Bearer ${getUserToken()}`,
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
             },
+            method: "POST",
             body: JSON.stringify({
-              task_id: collectiveId
+              pa_id: a_id,
+              collective_id: Number(correctCollectiveId)
             })
           });
 
-          const actions = await res.json();
-          const filteredActions = actions.filter(
-            (a: any) => a.action_type === item.a_id && !a.action_log_id
-          );
+          const json = await res.json();
+          const entriesArray = json ? Object.values(json) as MWBEntry[] : [];
 
-          let mappedEntries: MWBEntry[] = [];
-
-          if (item.a_id === 30) {
-            mappedEntries = filteredActions.map((action: any) => ({
-              action_id: action.action_id,
-              ua_id: action.ua_id,
-              a_id: 30,
-              at_id: action.task_id,
-              flag: "PT",
-              trigger: "action",
-              user_id: userId,
-              description: action.name || "",
-              value1: "",
-              value2: "", // Repeat
-              value3: action.name || "",
-              value4: action.by_datetime_value, // datetime
-              value5: action.duration_value,
-              value6: "",
-              cat_qty_id1: "None",
-              cat_qty_id2: [
-                { item_description: "Repeat", item_id: "58", item_name: "Repeat", item_type: "category" },
-                { cat_id: 128, name: "Yes", flag: action.repeat_status === "128" ? "selected" : undefined },
-                { cat_id: 129, name: "No", flag: action.repeat_status === "129" ? "selected" : undefined },
-              ],
-              cat_qty_id3: [
-                { item_description: "Name or title for a given entity", item_id: "38", item_name: "name", item_type: "unit" },
-                { unit_id: 23, name: "text", flag: "selected" },
-              ],
-              cat_qty_id4: [
-                { item_description: "add a date time", item_id: "53", item_name: "date time", item_type: "unit" },
-                { unit_id: 58, name: "mm/dd/yyyy HH:mm", flag: "selected" },
-              ],
-              cat_qty_id5: [
-                { item_description: "duration of action", item_id: "54", item_name: "duration", item_type: "unit" },
-                { unit_id: 56, name: "mins", flag: action.duration_unit === 56 ? "selected" : undefined },
-                { unit_id: 57, name: "hours", flag: action.duration_unit === 57 ? "selected" : undefined },
-              ],
-              cat_qty_id6: [
-                { item_id: "None", item_name: "None", name: "item_id doesn't exist" },
-              ],
-            }));
+          // ✅ Step 4: Custom filters
+          let filteredEntries = entriesArray;
+          if (a_id === 29) {
+            filteredEntries = entriesArray.filter((entry) => entry.cat_qty_id1 === collectiveId);
           }
 
-          if (item.a_id === 31) {
-            mappedEntries = filteredActions.map((action: any) => {
-              const selectedDayId = Number(action.day_week); // Expected to be 76–82
-              const dayOptions = [
-                { cat_id: 76, name: "Monday" },
-                { cat_id: 77, name: "Tuesday" },
-                { cat_id: 78, name: "Wednesday" },
-                { cat_id: 79, name: "Thursday" },
-                { cat_id: 80, name: "Friday" },
-                { cat_id: 81, name: "Saturday" },
-                { cat_id: 82, name: "Sunday" },
-              ];
-
-              return {
-                action_id: action.action_id,
-                ua_id: action.ua_id,
-                a_id: 31,
-                at_id: action.task_id,
-                flag: "PT",
-                trigger: "action",
-                user_id: userId,
-                description: action.name || "",
-                value1: "",
-                value2: "", // Repeat
-                value3: action.name || "",
-                value4: "", // ✅ Always "0"
-                value5: action.time_of_day_value || "",
-                value6: action.duration_value,
-                cat_qty_id1: "None",
-                cat_qty_id2: [
-                  { item_description: "Repeat", item_id: "58", item_name: "Repeat", item_type: "category" },
-                  { cat_id: 128, name: "Yes", flag: action.repeat_status === "128" ? "selected" : undefined },
-                  { cat_id: 129, name: "No", flag: action.repeat_status === "129" ? "selected" : undefined },
-                ],
-                cat_qty_id3: [
-                  { item_description: "Name or title for a given entity", item_id: "38", item_name: "name", item_type: "unit" },
-                  { unit_id: 23, name: "text", flag: "selected" },
-                ],
-                cat_qty_id4: [
-                  { item_description: "Days in week", item_id: "21", item_name: "Days", item_type: "category" },
-                  ...dayOptions.map((opt) => ({
-                    ...opt,
-                    flag: opt.cat_id === selectedDayId ? "selected" : undefined,
-                  })),
-                ],
-                cat_qty_id5: [
-                  { item_description: "time of the day", item_id: "55", item_name: "time", item_type: "unit" },
-                  { unit_id: 59, name: "HH:mm", flag: "selected" },
-                ],
-                cat_qty_id6: [
-                  { item_description: "duration of action", item_id: "54", item_name: "duration", item_type: "unit" },
-                  { unit_id: 56, name: "mins", flag: action.duration_unit === 56 ? "selected" : undefined },
-                  { unit_id: 57, name: "hours", flag: action.duration_unit === 57 ? "selected" : undefined },
-                ],
-              };
+          if ([30, 31, 32].includes(a_id)) {
+            const resActions = await fetch(`${API_BASE_URL}/api/action/get_all_actions_based_task`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${getUserToken()}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ task_id: collectiveId })
             });
+
+            const actions = await resActions.json();
+            const filteredActions = actions.filter(
+              (a: any) => a.action_type === a_id && !a.action_log_id
+            );
+
+            const mappedEntries: MWBEntry[] = [];
+            result[a_id] = mappedEntries;
+            templateUpdates[a_id] = templates[a_id] || {};
+            continue;
           }
 
+          result[a_id] = filteredEntries;
+          templateUpdates[a_id] = templates[a_id] || {};
 
-          if (item.a_id === 32) {
-            mappedEntries = filteredActions.map((action: any) => ({
-              action_id: action.action_id,
-              ua_id: action.ua_id,
-              a_id: 32,
-              at_id: action.task_id,
-              flag: "PT",
-              trigger: "action",
-              user_id: userId,
-              description: action.name || "",
-              value1: "",
-              value2: "", // Repeat
-              value3: action.name || "",
-              value4: action.day_month || "", // 1-31
-              value5: action.time_of_day_value || "",       // HH:mm
-              value6: action.duration_value,
-              cat_qty_id1: "None",
-              cat_qty_id2: [
-                { item_description: "Repeat", item_id: "58", item_name: "Repeat", item_type: "category" },
-                { cat_id: 128, name: "Yes", flag: action.repeat_status === "128" ? "selected" : undefined },
-                { cat_id: 129, name: "No", flag: action.repeat_status === "129" ? "selected" : undefined },
-              ],
-              cat_qty_id3: [
-                { item_description: "Name or title for a given entity", item_id: "38", item_name: "name", item_type: "unit" },
-                { unit_id: 23, name: "text" },
-              ],
-              cat_qty_id4: [
-                { item_description: "add number 1-31", item_id: "56", item_name: "day of month", item_type: "unit" },
-                { unit_id: 39, name: "number" },
-              ],
-              cat_qty_id5: [
-                { item_description: "time of the day", item_id: "55", item_name: "time", item_type: "unit" },
-                { unit_id: 59, name: "HH:mm", flag: "selected" },
-              ],
-              cat_qty_id6: [
-                { item_description: "duration of action", item_id: "54", item_name: "duration", item_type: "unit" },
-                { unit_id: 56, name: "mins", flag: action.duration_unit === 56 ? "selected" : undefined },
-                { unit_id: 57, name: "hours", flag: action.duration_unit === 57 ? "selected" : undefined },
-              ],
-            }));
-          }
-
-          result[item.a_id] = mappedEntries;
-
-          const templateRes = await fetch(`${API_BASE_URL}/api/activity/get_template/${item.a_id}`, {
-            headers: {
-              Authorization: `Bearer ${getUserToken()}`,
-            },
-          });
-          const templateJson = await templateRes.json();
-          setTemplateMap((prev) => ({ ...prev, [item.a_id]: templateJson }));
-
-          continue;
+        } catch (err) {
+          console.error(`Error fetching data for pa_id ${a_id}`, err);
+          result[a_id] = [];
         }
-
-        result[item.a_id] = filteredEntries;
-
-        const templateRes = await fetch(`${API_BASE_URL}/api/activity/get_template/${item.a_id}`, {
-          headers: {
-            Authorization: `Bearer ${getUserToken()}`,
-          },
-        });
-        const templateJson = await templateRes.json();
-        setTemplateMap((prev) => ({ ...prev, [item.a_id]: templateJson }));
-      } catch (err) {
-        console.error(`Error fetching data for pa_id ${item.a_id}`, err);
-        result[item.a_id] = [];
       }
+
+      // ✅ Step 5: Batch updates once
+      setTemplateMap((prev) => ({ ...prev, ...templateUpdates }));
+      setDataMap(result);
+
+    } catch (error) {
+      console.error("Unexpected error in fetchAll:", error);
+    } finally {
+      setLoading(false);
     }
-
-    setDataMap(result);
-    setLoading(false);
   };
-
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      fetchAll();
+    }
+  }, [refreshTrigger]);
+  
   const updatePrimaryMWBData = async (payload: any) => {
     const response = await fetch(`${API_BASE_URL}/api/activity/update_delete_trigger_activity`, {
       method: "POST",
@@ -603,6 +466,55 @@ export default function DynamicActivityDetails({ userId, realCollectiveId, colle
           }
         }
       }
+      if (item.a_id === 10) {
+        // --- Get selected values ---
+        const selectedDayCatId = Number(getCatId(item.cat_qty_id2, 2));  // item_id2 → day category
+        const selectedHourInput = Number(editedValues.value4 ?? item.value4); // item_id4 → hour
+        const selectedUnit = Number(getUnitId(item.cat_qty_id4, 4));      // item_id4 → 20=24HR, 21=AM, 22=PM
+
+        // --- Validate inputs ---
+        if (isNaN(selectedDayCatId) || isNaN(selectedHourInput) || isNaN(selectedUnit)) {
+          console.error("Invalid input for a_id 10");
+          return;
+        }
+
+        // --- Convert to 24-hour format ---
+        let selectedHour = selectedHourInput;
+
+        if (selectedUnit === 22) { // PM
+          if (selectedHour < 12) selectedHour += 12;
+        } else if (selectedUnit === 21) { // AM
+          if (selectedHour === 12) selectedHour = 0;
+        }
+        // 24HR (20) → no change
+
+        // --- Map day category → JS day index (0=Sun, 6=Sat) ---
+        const dayNameMap: Record<number, number> = {
+          76: 1, 77: 2, 78: 3, 79: 4,
+          80: 5, 81: 6, 82: 0
+        };
+        const targetDayIndex = dayNameMap[selectedDayCatId];
+        if (targetDayIndex === undefined) {
+          console.error("Invalid day category ID:", selectedDayCatId);
+          return;
+        }
+
+        // --- Calculate nearest date for selected day ---
+        const now = new Date();
+        const currentDayIndex = now.getDay();
+        let daysUntilTarget = targetDayIndex - currentDayIndex;
+        if (daysUntilTarget < 0 || (daysUntilTarget === 0 && selectedHour <= now.getHours())) {
+          daysUntilTarget += 7;
+        }
+
+        const targetLocal = new Date(now);
+        targetLocal.setDate(now.getDate() + daysUntilTarget);
+        targetLocal.setHours(selectedHour, 0, 0, 0);
+
+        // --- Convert local → UTC dynamically based on user's timezone ---
+        payload.by_datetime_value = targetLocal.toISOString().slice(0, 16);
+
+      }
       // console.log(payload);
       await updatePrimaryMWBData(payload);
       setEditingItemId(null);
@@ -644,11 +556,20 @@ export default function DynamicActivityDetails({ userId, realCollectiveId, colle
       console.error("Failed to delete item", err);
     }
   };
+  const stableActivityItems = useMemo(
+    () => JSON.stringify(activityItems),
+    [activityItems]
+  );
+
+  const didRunOnce = useRef(false);
 
   useEffect(() => {
+    if (didRunOnce.current) return; // 🛑 skip second StrictMode run
+    didRunOnce.current = true;
+
     if (!userId || !collectiveId || !activityItems?.length) return;
     fetchAll();
-  }, [userId, collectiveId, activityItems]);
+  }, [userId, collectiveId, stableActivityItems]);
 
   if (loading) {
     return (

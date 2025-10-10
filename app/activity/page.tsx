@@ -433,7 +433,7 @@ function ActivityPage() {
     const isPlanType = selectedActivityType === 301;
     const [selectedGoalDetails, setSelectedGoalDetails] = useState<any | null>(null);
     const [selectedTaskDetails, setSelectedTaskDetails] = useState<any | null>(null);
-
+    const [refreshDetails, setRefreshDetails] = useState(0);
     const getUserId = (): string => {
         const userInfo = Cookies.get("userInfo");
         if (!userInfo) throw new Error('User not authenticated');
@@ -1601,6 +1601,7 @@ function ActivityPage() {
 
                             <DynamicActivityDetails
                                 userId={getUserId()}
+                                refreshTrigger={refreshDetails}
                                 collectiveId={activeActivity.collective_id}
                                 activityItems={enrichedItems}
                             />
@@ -1652,6 +1653,7 @@ function ActivityPage() {
                             // console.log("other")
                             fetchUserActivities();
                         }
+                        setRefreshDetails(prev => prev + 1)
                     }}
                     selectedTaskDetails={selectedTaskDetails}
                     selectedGoalDetails={selectedGoalDetails}
@@ -1705,6 +1707,7 @@ function ActivityPage() {
                                 ))}
                             </div>
                             <DynamicActivityDetails
+                            refreshTrigger={refreshDetails}
                                 userId={getUserId()}
                                 collectiveId={selectedGoalDetails.goalId}
                                 activityItems={enrichedItems}
@@ -1754,6 +1757,7 @@ function ActivityPage() {
                                 )}
                             </div>
                             <DynamicActivityDetails
+                                refreshTrigger={refreshDetails}
                                 userId={getUserId()}
                                 collectiveId={selectedTaskDetails.task_id}
                                 activityItems={enrichedItems}
